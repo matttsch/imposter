@@ -1,3 +1,4 @@
+// server/index.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -8,7 +9,9 @@ const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+  cors: { origin: "*" }
+});
 
 const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "kebsiary14";
@@ -62,10 +65,8 @@ io.on("connection", (socket) => {
     socket.join(GAME_ROOM);
     room.players.push({ id: socket.id, name });
     room.scores[socket.id] = room.scores[socket.id] || 0;
-
     io.to(GAME_ROOM).emit("players", room.players);
     socket.emit("joined");
-
     if (room.started) {
       socket.emit("started");
     }
@@ -77,7 +78,6 @@ io.on("connection", (socket) => {
       socket.emit("error", { message: "Gra już została rozpoczęta." });
       return;
     }
-
     room.started = true;
     io.to(GAME_ROOM).emit("started");
     sendNewRound();
@@ -100,6 +100,7 @@ io.on("connection", (socket) => {
     room.voteHistory = [];
     room.lastResult = null;
 
+    // Wyślij słowo do graczy
     players.forEach((player, i) => {
       const isImposter = i === imposterIndex;
       io.to(player.id).emit("round", {
@@ -108,6 +109,7 @@ io.on("connection", (socket) => {
       });
     });
 
+    // Usuń użyte słowo (dopiero po wysłaniu)
     removeUsedWord(word);
 
     setTimeout(() => {
@@ -194,7 +196,6 @@ io.on("connection", (socket) => {
     delete room.scores[socket.id];
     delete room.votes[socket.id];
     io.to(GAME_ROOM).emit("players", room.players);
-    socket.emit("ended");
   });
 
   socket.on("disconnect", () => {
