@@ -1,3 +1,4 @@
+// client/src/App.js
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "./App.css";
@@ -43,6 +44,11 @@ function App() {
     socket.connect();
     return () => socket.disconnect();
   }, []);
+
+  useEffect(() => {
+    document.body.className = theme;
+    document.documentElement.className = theme;
+  }, [theme]);
 
   const joinRoom = () => {
     setError(null);
