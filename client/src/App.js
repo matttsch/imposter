@@ -24,7 +24,10 @@ function App() {
     socket.on("round", ({ word }) => setWord(word));
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
-    socket.on("error", (err) => setError(err.message));
+    socket.on("error", (err) => {
+      setError(err.message);
+      setStep("code");
+    });
 
     socket.connect();
 
@@ -36,7 +39,6 @@ function App() {
   const joinRoom = () => {
     setError(null);
     socketRef.current.emit("join", { code, name });
-    setStep("game");
   };
 
   const startGame = () => {
