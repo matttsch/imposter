@@ -10,6 +10,8 @@ function App() {
   const [word, setWord] = useState(null);
   const [started, setStarted] = useState(false);
   const [error, setError] = useState(null);
+  const [scores, setScores] = useState({});
+  const [voted, setVoted] = useState(false);
 
   const socketRef = useRef(null);
 
@@ -21,7 +23,10 @@ function App() {
     const socket = socketRef.current;
 
     socket.on("players", setPlayers);
-    socket.on("round", ({ word }) => setWord(word));
+    socket.on("round", ({ word }) => {
+      setWord(word);
+      setVoted(false);
+    });
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
     socket.on("joined", () => setStep("game"));
@@ -29,12 +34,10 @@ function App() {
       setError(err.message);
       setStep("code");
     });
+    socket.on("scores", setScores);
 
     socket.connect();
-
-    return () => {
-      socket.disconnect();
-    };
+    return () => socket.disconnect();
   }, []);
 
   const joinRoom = () => {
@@ -47,25 +50,23 @@ function App() {
     socketRef.current.emit("start");
   };
 
-  const nextRound = () => socketRef.current.emit("next");
+  const voteImposter = (id) => {
+    if (!voted) {
+      socketRef.current.emit("vote", id);
+      setVoted(true);
+    }
+  };
+
   const endGame = () => socketRef.current.emit("end");
 
   return (
-    <div className="container">
+    <div className="container dark">
+      <h1 className="logo">IMPOSTER <span>by @matttsch</span></h1>
+
       {step === "code" && (
         <div className="login-box">
-          <input
-            className="input"
-            placeholder="Kod dostępu"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <input
-            className="input"
-            placeholder="Imię"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
+          <input className="input" placeholder="Kod dostępu" value={code} onChange={(e) => setCode(e.target.value)} />
+          <input className="input" placeholder="Imię" value={name} onChange={(e) => setName(e.target.value)} />
           <button className="btn" onClick={joinRoom}>Dołącz</button>
           {error && <p className="error">{error}</p>}
         </div>
@@ -73,29 +74,28 @@ function App() {
 
       {step === "game" && (
         <div className="game-box">
-          <h2>Pokój gry</h2>
           <div className="players-box">
             <strong>Gracze:</strong>
             <ul>
               {players.map((p) => (
-                <li key={p.id}>{p.name}</li>
+                <li key={p.id}>
+                  {p.name} — <small>{scores[p.id] || 0} pkt</small>
+                  {started && !voted && p.id !== socketRef.current.id && (
+                    <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
+                  )}
+                </li>
               ))}
             </ul>
           </div>
 
           {!started ? (
-            <button className="btn" onClick={startGame} disabled={started}>
-              Start gry
-            </button>
+            <button className="btn" onClick={startGame}>Start gry</button>
           ) : (
-            <div>
-              <h1 className="word-display">{word}</h1>
-              <button className="btn" onClick={nextRound}>Kolejna runda</button>
+            <div className="round-box">
+              <h2 className="word-display">{word}</h2>
               <button className="btn end" onClick={endGame}>Koniec gry</button>
             </div>
           )}
-
-          {error && <p className="error">{error}</p>}
         </div>
       )}
     </div>
