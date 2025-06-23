@@ -21,24 +21,21 @@ body, html {
   padding: 0;
   background-color: var(--bg-color);
   color: var(--text-color);
-  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-family: sans-serif;
 }
 
 .container {
-  padding: 20px;
-  max-width: 800px;
-  margin: 0 auto;
+  padding: 30px;
 }
 
 .logo {
   text-align: center;
-  font-size: 2.5em;
+  font-size: 36px;
   margin-bottom: 20px;
 }
 
 .logo span {
-  display: block;
-  font-size: 1em;
+  font-size: 16px;
   color: var(--highlight-color);
 }
 
@@ -46,12 +43,13 @@ body, html {
   position: absolute;
   top: 10px;
   right: 10px;
-  background: transparent;
+  background: none;
   border: 1px solid var(--highlight-color);
   color: var(--highlight-color);
-  padding: 5px 10px;
+  padding: 6px 12px;
   cursor: pointer;
-  border-radius: 5px;
+  border-radius: 4px;
+  font-size: 14px;
 }
 
 .login-box, .game-box {
@@ -63,19 +61,21 @@ body, html {
 .input {
   margin: 10px 0;
   padding: 10px;
-  width: 200px;
+  width: 250px;
+  border-radius: 6px;
   border: 1px solid #ccc;
-  border-radius: 5px;
+  font-size: 16px;
 }
 
 .btn, .vote-btn, .leave-btn {
-  padding: 10px 15px;
-  margin: 10px;
+  padding: 10px 20px;
   border: none;
-  border-radius: 5px;
+  border-radius: 6px;
   background-color: var(--btn-color);
   color: white;
+  font-size: 16px;
   cursor: pointer;
+  margin: 10px;
 }
 
 .end {
@@ -84,60 +84,63 @@ body, html {
 
 .error {
   color: var(--danger-color);
+  font-size: 14px;
   margin-top: 10px;
 }
 
 .players-box {
   width: 100%;
+  max-width: 500px;
   margin-bottom: 20px;
 }
 
 .player-list {
   list-style: none;
   padding: 0;
+  margin: 0;
 }
 
 .player-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 5px 0;
-  padding: 8px;
-  background-color: rgba(255, 255, 255, 0.05);
-  border-radius: 5px;
+  background: rgba(255,255,255,0.05);
+  padding: 10px;
+  margin: 6px 0;
+  border-radius: 6px;
 }
 
 .player-info {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 
 .player-name {
   font-weight: bold;
+  font-size: 16px;
 }
 
 .remove-btn {
   color: var(--danger-color);
   cursor: pointer;
-  font-size: 1em;
-  padding: 0 4px;
-  border: 1px solid var(--danger-color);
-  border-radius: 3px;
+  font-size: 16px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin-right: 4px;
   line-height: 1;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .round-box {
   text-align: center;
+  margin-top: 20px;
 }
 
 .word-display {
-  font-size: 2em;
-  margin-bottom: 10px;
+  font-size: 28px;
+  font-weight: bold;
+  margin-bottom: 15px;
   color: var(--highlight-color);
 }
 
@@ -164,6 +167,6 @@ body, html {
 
 .voted-note {
   font-style: italic;
-  font-size: 0.9em;
+  font-size: 14px;
   color: var(--highlight-color);
 }
