@@ -113,21 +113,29 @@ function App() {
               {result && (
                 <div className="result-box">
                   {Array.isArray(result.votedOut) ? (
-  <h3>Gracze wytypowali na IMPOSTERA: {result.votedOut.join(', ')}</h3>
-) : (
-  <h3>Gracze wytypowali na IMPOSTERA: {result.votedOut}</h3>
-)}
+                    <h3>Gracze wytypowali na IMPOSTERA: {result.votedOut.join(', ')}</h3>
+                  ) : (
+                    <h3>Gracze wytypowali na IMPOSTERA: {result.votedOut}</h3>
+                  )}
                   <p>Rzeczywisty imposter: <strong>{result.imposterName}</strong></p>
                   <table className="vote-table">
-  <thead>
-    <tr><th>Gracz</th><th>Zagłosował na</th></tr>
-  </thead>
-  <tbody>
-    {result.voteHistory.map((v, idx) => (
-      <tr key={idx}><td>{v.from}</td><td>{v.to}</td></tr>
-    ))}
-  </tbody>
-</table>
+                    <thead>
+                      <tr><th>Gracz</th><th>Zagłosował na</th></tr>
+                    </thead>
+                    <tbody>
+                      {result.voteHistory.map((v, idx) => {
+                        const correct = Array.isArray(result.imposterName)
+                          ? result.imposterName.includes(v.to)
+                          : v.to === result.imposterName;
+                        return (
+                          <tr key={idx} className={correct ? "highlight" : ""}>
+                            <td>{v.from}</td>
+                            <td>{v.to}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                   <button className="btn" onClick={nextRound}>Kolejna runda</button>
                 </div>
               )}
