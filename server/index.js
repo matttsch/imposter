@@ -29,6 +29,7 @@ const rooms = {
 };
 
 let nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
+
 function reloadNounsIfEmpty() {
   if (nouns.length === 0) {
     nouns = fs.readFileSync("polish_nouns_backup.txt", "utf-8").split("\n").filter(Boolean);
@@ -36,6 +37,7 @@ function reloadNounsIfEmpty() {
     console.log("Lista słów została zresetowana.");
   }
 }
+
 function removeUsedWord(word) {
   nouns = nouns.filter(w => w.trim().toLowerCase() !== word.trim().toLowerCase());
   fs.writeFileSync("polish_nouns.txt", nouns.join("\n"), "utf-8");
@@ -86,7 +88,6 @@ io.on("connection", (socket) => {
 
     reloadNounsIfEmpty();
     const word = nouns[Math.floor(Math.random() * nouns.length)].trim();
-    removeUsedWord(word);
 
     const imposterIndex = Math.floor(Math.random() * players.length);
     room.imposterIndex = imposterIndex;
@@ -96,8 +97,10 @@ io.on("connection", (socket) => {
 
     players.forEach((player, i) => {
       const isImposter = i === imposterIndex;
-      io.to(player.id).emit("round", { word: isImposter ? "IMPOSTER" : word, remaining: nouns.length });
+      io.to(player.id).emit("round", { word: isImposter ? "IMPOSTER" : word, remaining: nouns.length - 1 });
     });
+
+    removeUsedWord(word);
   }
 
   socket.on("vote", (votedId) => {
