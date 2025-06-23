@@ -12,7 +12,7 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "kebsiary14";
 const GAME_ROOM = "main-room";
 const rooms = {
