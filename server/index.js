@@ -30,13 +30,19 @@ io.on("connection", (socket) => {
     }
 
     currentName = name;
+    socket.join(GAME_ROOM);
     rooms[GAME_ROOM].players.push({ id: socket.id, name });
     io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
-    socket.join(GAME_ROOM);
+    if (rooms[GAME_ROOM].started) {
+      socket.emit("started");
+    }
   });
 
   socket.on("start", () => {
-    if (rooms[GAME_ROOM].started) return;
+    if (rooms[GAME_ROOM].started) {
+      socket.emit("error", { message: "Gra już została rozpoczęta." });
+      return;
+    }
     rooms[GAME_ROOM].started = true;
     io.to(GAME_ROOM).emit("started");
     sendNewRound();
@@ -54,12 +60,13 @@ io.on("connection", (socket) => {
   }
 
   socket.on("next", () => {
+    if (!rooms[GAME_ROOM].started) return;
     sendNewRound();
   });
 
   socket.on("end", () => {
-    io.to(GAME_ROOM).emit("ended");
     rooms[GAME_ROOM] = { players: [], started: false };
+    io.to(GAME_ROOM).emit("ended");
   });
 
   socket.on("disconnect", () => {
