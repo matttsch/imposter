@@ -1,5 +1,3 @@
-/* === App.css: kompletny, responsywny styl dla gry Imposter === */
-
 :root {
   --bg-dark: #0d1117;
   --text-dark: #c9d1d9;
@@ -157,6 +155,16 @@ h1.logo span {
   text-align: center;
   font-size: 2.5rem;
   margin: 1rem 0;
+  font-weight: bold;
+  padding: 1rem;
+  border: 2px dashed var(--accent-dark);
+  border-radius: 10px;
+  background-color: rgba(88, 166, 255, 0.1);
+}
+
+.container.light .word-display {
+  border-color: var(--accent-light);
+  background-color: rgba(0, 89, 179, 0.05);
 }
 
 .vote-table {
