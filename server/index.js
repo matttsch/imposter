@@ -88,12 +88,17 @@ io.on("connection", (socket) => {
         voteCounts[id] = (voteCounts[id] || 0) + 1;
       });
 
-      const [mostVotedId, count] = Object.entries(voteCounts).sort((a, b) => b[1] - a[1])[0];
+      const maxVotes = Math.max(...Object.values(voteCounts));
+      const topVotedIds = Object.entries(voteCounts)
+        .filter(([_, v]) => v === maxVotes)
+        .map(([id]) => id);
+
+      const votedOutNames = topVotedIds.map(id => room.players.find(p => p.id === id)?.name);
       const imposter = room.players[room.imposterIndex];
 
-      if (mostVotedId === imposter.id) {
+      if (topVotedIds.includes(imposter.id)) {
         for (const [voterId, votedId] of Object.entries(room.votes)) {
-          if (votedId === mostVotedId) {
+          if (votedId === imposter.id) {
             room.scores[voterId]++;
           }
         }
@@ -102,7 +107,7 @@ io.on("connection", (socket) => {
       }
 
       room.lastResult = {
-        votedOut: room.players.find(p => p.id === mostVotedId)?.name,
+        votedOut: votedOutNames.length === 1 ? votedOutNames[0] : votedOutNames,
         imposterName: imposter.name,
         voteHistory: room.voteHistory.map(({ from, to }) => {
           const fromName = room.players.find(p => p.id === from)?.name;
