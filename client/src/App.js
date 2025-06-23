@@ -34,11 +34,16 @@ function App() {
   }, []);
 
   const joinRoom = () => {
+    setError(null);
     socketRef.current.emit("join", { code, name });
     setStep("game");
   };
 
-  const startGame = () => socketRef.current.emit("start");
+  const startGame = () => {
+    setError(null);
+    socketRef.current.emit("start");
+  };
+
   const nextRound = () => socketRef.current.emit("next");
   const endGame = () => socketRef.current.emit("end");
 
@@ -76,7 +81,9 @@ function App() {
           </div>
 
           {!started ? (
-            <button className="btn" onClick={startGame}>Start gry</button>
+            <button className="btn" onClick={startGame} disabled={started}>
+              Start gry
+            </button>
           ) : (
             <div>
               <h1 className="word-display">{word}</h1>
@@ -84,6 +91,8 @@ function App() {
               <button className="btn end" onClick={endGame}>Koniec gry</button>
             </div>
           )}
+
+          {error && <p className="error">{error}</p>}
         </div>
       )}
     </div>
