@@ -1,3 +1,4 @@
+// client/src/App.js
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "./App.css";
@@ -14,6 +15,7 @@ function App() {
   const [voted, setVoted] = useState(false);
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
+  const [remainingWords, setRemainingWords] = useState(null);
 
   const socketRef = useRef(null);
 
@@ -25,10 +27,11 @@ function App() {
     const socket = socketRef.current;
 
     socket.on("players", setPlayers);
-    socket.on("round", ({ word }) => {
+    socket.on("round", ({ word, remaining }) => {
       setWord(word);
       setVoted(false);
       setResult(null);
+      setRemainingWords(remaining);
     });
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
@@ -72,15 +75,8 @@ function App() {
   };
 
   const endGame = () => socketRef.current.emit("end");
-
-  const leaveGame = () => {
-    socketRef.current.emit("leave");
-    window.location.reload();
-  };
-
-  const removePlayer = (id) => {
-    socketRef.current.emit("kick", id);
-  };
+  const leaveGame = () => window.location.reload();
+  const kickPlayer = (id) => socketRef.current.emit("kick", id);
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
@@ -106,10 +102,7 @@ function App() {
             <ul className="player-list">
               {players.map((p) => (
                 <li key={p.id} className="player-row">
-                  <div className="player-info">
-                    <span className="remove-btn" onClick={() => removePlayer(p.id)}>❌</span>
-                    <span className="player-name">{p.name}</span>
-                  </div>
+                  <span className="player-name">{p.name}</span>
                   <div className="player-actions">
                     {started && !voted && !result && p.id !== socketRef.current.id && (
                       <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
@@ -117,6 +110,7 @@ function App() {
                     {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
                       <em className="voted-note">Zagłosowałeś na {p.name}</em>
                     )}
+                    {!started && <button className="vote-btn" onClick={() => kickPlayer(p.id)}>❌</button>}
                   </div>
                 </li>
               ))}
@@ -162,10 +156,15 @@ function App() {
               {!result && <p>{!voted ? "Oddaj swój głos" : "Czekamy na pozostałych graczy..."}</p>}
 
               <button className="btn end" onClick={endGame}>Koniec gry</button>
+              <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
             </div>
           )}
 
-          <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
+          {remainingWords !== null && (
+            <p style={{ fontSize: "0.8rem", textAlign: "right", marginTop: "1rem", opacity: 0.6 }}>
+              Pozostało słów: {remainingWords}
+            </p>
+          )}
         </div>
       )}
     </div>
