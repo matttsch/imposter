@@ -16,6 +16,10 @@ const PORT = process.env.PORT || 3001;
 const rooms = {}; // { roomCode: { players: [], started: false, currentWord: '', imposter: '' } }
 const nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
 
+app.get("/", (req, res) => {
+  res.send("Backend działa poprawnie");
+});
+
 io.on("connection", (socket) => {
   let currentRoom = null;
   let currentName = null;
