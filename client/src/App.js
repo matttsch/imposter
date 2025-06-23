@@ -1,9 +1,5 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
-
-const socket = io("https://imposter-014f.onrender.com", {
-  autoConnect: false,
-});
 
 function App() {
   const [step, setStep] = useState("code");
@@ -13,7 +9,15 @@ function App() {
   const [word, setWord] = useState(null);
   const [started, setStarted] = useState(false);
 
+  const socketRef = useRef(null);
+
   useEffect(() => {
+    socketRef.current = io("https://imposter-014f.onrender.com", {
+      autoConnect: false,
+    });
+
+    const socket = socketRef.current;
+
     console.log("Setting up socket event listeners");
 
     socket.on("connect", () => {
@@ -58,23 +62,23 @@ function App() {
 
   const joinRoom = () => {
     console.log("Joining room:", roomCode, "with name:", name);
-    socket.emit("join", { roomCode, name });
+    socketRef.current.emit("join", { roomCode, name });
     setStep("game");
   };
 
   const startGame = () => {
     console.log("Starting game");
-    socket.emit("start");
+    socketRef.current.emit("start");
   };
 
   const nextRound = () => {
     console.log("Next round requested");
-    socket.emit("next");
+    socketRef.current.emit("next");
   };
 
   const endGame = () => {
     console.log("Ending game");
-    socket.emit("end");
+    socketRef.current.emit("end");
   };
 
   return (
