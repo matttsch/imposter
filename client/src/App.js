@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from "react";
 import io from "socket.io-client";
 
-const socket = io("https://imposter-014f.onrender.com");
-
+const socket = io("https://imposter-014f.onrender.com", {
+  autoConnect: false,
+});
 
 function App() {
   const [step, setStep] = useState("code");
@@ -13,28 +14,83 @@ function App() {
   const [started, setStarted] = useState(false);
 
   useEffect(() => {
-    socket.on("players", setPlayers);
-    socket.on("round", ({ word }) => setWord(word));
-    socket.on("started", () => setStarted(true));
-    socket.on("ended", () => window.location.reload());
-    return () => socket.disconnect();
+    console.log("Setting up socket event listeners");
+
+    socket.on("connect", () => {
+      console.log("Socket connected:", socket.id);
+    });
+
+    socket.on("connect_error", (err) => {
+      console.error("Socket connect_error:", err);
+    });
+
+    socket.on("disconnect", (reason) => {
+      console.log("Socket disconnected:", reason);
+    });
+
+    socket.on("players", (data) => {
+      console.log("Received players list:", data);
+      setPlayers(data);
+    });
+
+    socket.on("round", ({ word }) => {
+      console.log("Received round with word:", word);
+      setWord(word);
+    });
+
+    socket.on("started", () => {
+      console.log("Game started");
+      setStarted(true);
+    });
+
+    socket.on("ended", () => {
+      console.log("Game ended, reloading");
+      window.location.reload();
+    });
+
+    socket.connect();
+
+    return () => {
+      console.log("Cleaning up socket");
+      socket.disconnect();
+    };
   }, []);
 
   const joinRoom = () => {
+    console.log("Joining room:", roomCode, "with name:", name);
     socket.emit("join", { roomCode, name });
     setStep("game");
   };
 
-  const startGame = () => socket.emit("start");
-  const nextRound = () => socket.emit("next");
-  const endGame = () => socket.emit("end");
+  const startGame = () => {
+    console.log("Starting game");
+    socket.emit("start");
+  };
+
+  const nextRound = () => {
+    console.log("Next round requested");
+    socket.emit("next");
+  };
+
+  const endGame = () => {
+    console.log("Ending game");
+    socket.emit("end");
+  };
 
   return (
     <div style={{ padding: 30 }}>
       {step === "code" && (
         <div>
-          <input placeholder="Kod pokoju" value={roomCode} onChange={e => setRoomCode(e.target.value)} />
-          <input placeholder="Imię" value={name} onChange={e => setName(e.target.value)} />
+          <input
+            placeholder="Kod pokoju"
+            value={roomCode}
+            onChange={(e) => setRoomCode(e.target.value)}
+          />
+          <input
+            placeholder="Imię"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
           <button onClick={joinRoom}>Dołącz</button>
         </div>
       )}
@@ -45,7 +101,9 @@ function App() {
           <div style={{ position: "absolute", top: 10, right: 10 }}>
             <strong>Gracze:</strong>
             <ul>
-              {players.map(p => <li key={p.id}>{p.name}</li>)}
+              {players.map((p) => (
+                <li key={p.id}>{p.name}</li>
+              ))}
             </ul>
           </div>
 
