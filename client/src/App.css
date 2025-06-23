@@ -110,7 +110,7 @@ body, html {
 .player-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 6px;
 }
 
 .player-name {
@@ -120,7 +120,15 @@ body, html {
 .remove-btn {
   color: var(--danger-color);
   cursor: pointer;
-  font-size: 1.2em;
+  font-size: 1em;
+  padding: 0 4px;
+  border: 1px solid var(--danger-color);
+  border-radius: 3px;
+  line-height: 1;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .round-box {
