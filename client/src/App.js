@@ -78,6 +78,10 @@ function App() {
     window.location.reload();
   };
 
+  const removePlayer = (id) => {
+    socketRef.current.emit("kick", id);
+  };
+
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
 
@@ -102,6 +106,7 @@ function App() {
             <ul className="player-list">
               {players.map((p) => (
                 <li key={p.id} className="player-row">
+                  <span className="remove-btn" onClick={() => removePlayer(p.id)}>❌</span>
                   <span className="player-name">{p.name}</span>
                   <div className="player-actions">
                     {started && !voted && !result && p.id !== socketRef.current.id && (
