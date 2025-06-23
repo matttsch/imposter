@@ -34,17 +34,6 @@ body.light, html.light {
   transition: background-color 0.3s, color 0.3s;
 }
 
-.container.light {
-  background-color: var(--bg-light);
-  color: var(--text-light);
-}
-
-.container.light body,
-.container.light html {
-  background-color: var(--bg-light);
-  color: var(--text-light);
-}
-
 .container.dark {
   background-color: var(--bg-dark);
   color: var(--text-dark);
@@ -68,10 +57,10 @@ h1.logo {
 }
 
 h1.logo span {
-  font-weight: 400;
-  font-size: 1.2rem;
+  font-weight: 600;
+  font-size: 1.4rem;
   color: gray;
-  margin-top: 0.5rem;
+  margin-top: 0.6rem;
 }
 
 .login-box, .game-box, .round-box, .result-box {
