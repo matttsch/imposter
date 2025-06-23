@@ -41,7 +41,7 @@ function removeUsedWord(word) {
   fs.writeFileSync("polish_nouns.txt", nouns.join("\n"), "utf-8");
 }
 
-let nextAllowed = true;
+let roundInProgress = false;
 
 io.on("connection", (socket) => {
   let currentName = null;
@@ -81,12 +81,14 @@ io.on("connection", (socket) => {
   });
 
   function sendNewRound() {
+    if (roundInProgress) return;
+    roundInProgress = true;
+
     const room = rooms[GAME_ROOM];
     const players = room.players;
 
     reloadNounsIfEmpty();
     const word = nouns[Math.floor(Math.random() * nouns.length)].trim();
-    removeUsedWord(word);
 
     const imposterIndex = Math.floor(Math.random() * players.length);
     room.imposterIndex = imposterIndex;
@@ -96,8 +98,14 @@ io.on("connection", (socket) => {
 
     players.forEach((player, i) => {
       const isImposter = i === imposterIndex;
-      io.to(player.id).emit("round", { word: isImposter ? "IMPOSTER" : word, remaining: nouns.length });
+      io.to(player.id).emit("round", { word: isImposter ? "IMPOSTER" : word, remaining: nouns.length - 1 });
     });
+
+    removeUsedWord(word);
+
+    setTimeout(() => {
+      roundInProgress = false;
+    }, 1000);
   }
 
   socket.on("vote", (votedId) => {
@@ -148,14 +156,7 @@ io.on("connection", (socket) => {
   });
 
   socket.on("next", () => {
-    if (!nextAllowed) return;
-    nextAllowed = false;
-
     sendNewRound();
-
-    setTimeout(() => {
-      nextAllowed = true;
-    }, 1000);
   });
 
   socket.on("end", () => {
