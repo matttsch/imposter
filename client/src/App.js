@@ -97,8 +97,8 @@ function App() {
             <strong>Gracze:</strong>
             <ul>
               {players.map((p) => (
-                <li key={p.id}>
-                  {p.name} — <small>{scores[p.id] || 0} pkt</small>
+                <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span>{p.name}</span>
                   {started && !voted && !result && p.id !== socketRef.current.id && (
                     <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
                   )}
