@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
+import "./App.css";
 
 function App() {
   const [step, setStep] = useState("code");
-  const [roomCode, setRoomCode] = useState("");
+  const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [players, setPlayers] = useState([]);
   const [word, setWord] = useState(null);
   const [started, setStarted] = useState(false);
+  const [error, setError] = useState(null);
 
   const socketRef = useRef(null);
 
@@ -18,91 +20,53 @@ function App() {
 
     const socket = socketRef.current;
 
-    console.log("Setting up socket event listeners");
-
-    socket.on("connect", () => {
-      console.log("Socket connected:", socket.id);
-    });
-
-    socket.on("connect_error", (err) => {
-      console.error("Socket connect_error:", err);
-    });
-
-    socket.on("disconnect", (reason) => {
-      console.log("Socket disconnected:", reason);
-    });
-
-    socket.on("players", (data) => {
-      console.log("Received players list:", data);
-      setPlayers(data);
-    });
-
-    socket.on("round", ({ word }) => {
-      console.log("Received round with word:", word);
-      setWord(word);
-    });
-
-    socket.on("started", () => {
-      console.log("Game started");
-      setStarted(true);
-    });
-
-    socket.on("ended", () => {
-      console.log("Game ended, reloading");
-      window.location.reload();
-    });
+    socket.on("players", setPlayers);
+    socket.on("round", ({ word }) => setWord(word));
+    socket.on("started", () => setStarted(true));
+    socket.on("ended", () => window.location.reload());
+    socket.on("error", (err) => setError(err.message));
 
     socket.connect();
 
     return () => {
-      console.log("Cleaning up socket");
       socket.disconnect();
     };
   }, []);
 
   const joinRoom = () => {
-    console.log("Joining room:", roomCode, "with name:", name);
-    socketRef.current.emit("join", { roomCode, name });
+    socketRef.current.emit("join", { code, name });
     setStep("game");
   };
 
-  const startGame = () => {
-    console.log("Starting game");
-    socketRef.current.emit("start");
-  };
-
-  const nextRound = () => {
-    console.log("Next round requested");
-    socketRef.current.emit("next");
-  };
-
-  const endGame = () => {
-    console.log("Ending game");
-    socketRef.current.emit("end");
-  };
+  const startGame = () => socketRef.current.emit("start");
+  const nextRound = () => socketRef.current.emit("next");
+  const endGame = () => socketRef.current.emit("end");
 
   return (
-    <div style={{ padding: 30 }}>
+    <div className="container">
       {step === "code" && (
-        <div>
+        <div className="login-box">
           <input
-            placeholder="Kod pokoju"
-            value={roomCode}
-            onChange={(e) => setRoomCode(e.target.value)}
+            className="input"
+            placeholder="Kod dostępu"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
           />
           <input
+            className="input"
             placeholder="Imię"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <button onClick={joinRoom}>Dołącz</button>
+          <button className="btn" onClick={joinRoom}>Dołącz</button>
+          {error && <p className="error">{error}</p>}
         </div>
       )}
 
       {step === "game" && (
-        <div>
-          <h2>Pokój: {roomCode}</h2>
-          <div style={{ position: "absolute", top: 10, right: 10 }}>
+        <div className="game-box">
+          <h2>Pokój gry</h2>
+          <div className="players-box">
             <strong>Gracze:</strong>
             <ul>
               {players.map((p) => (
@@ -112,12 +76,12 @@ function App() {
           </div>
 
           {!started ? (
-            <button onClick={startGame}>Start gry</button>
+            <button className="btn" onClick={startGame}>Start gry</button>
           ) : (
             <div>
-              <h1>{word}</h1>
-              <button onClick={nextRound}>Kolejna runda</button>
-              <button onClick={endGame}>Koniec gry</button>
+              <h1 className="word-display">{word}</h1>
+              <button className="btn" onClick={nextRound}>Kolejna runda</button>
+              <button className="btn end" onClick={endGame}>Koniec gry</button>
             </div>
           )}
         </div>

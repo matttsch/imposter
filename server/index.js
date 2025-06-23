@@ -12,41 +12,38 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
-const PORT = process.env.PORT || 3001;
-const rooms = {}; // { roomCode: { players: [], started: false, currentWord: '', imposter: '' } }
+const PORT = 3001;
+const ACCESS_CODE = "kebsiary14";
+const GAME_ROOM = "main-room";
+const rooms = {
+  [GAME_ROOM]: { players: [], started: false }
+};
 const nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
 
-app.get("/", (req, res) => {
-  res.send("Backend działa poprawnie");
-});
-
 io.on("connection", (socket) => {
-  let currentRoom = null;
   let currentName = null;
 
-  socket.on("join", ({ roomCode, name }) => {
-    currentRoom = roomCode;
-    currentName = name;
-
-    if (!rooms[roomCode]) {
-      rooms[roomCode] = { players: [], started: false };
+  socket.on("join", ({ code, name }) => {
+    if (code !== ACCESS_CODE) {
+      socket.emit("error", { message: "Nieprawidłowy kod dostępu." });
+      return;
     }
 
-    rooms[roomCode].players.push({ id: socket.id, name });
-    io.to(roomCode).emit("players", rooms[roomCode].players);
-    socket.join(roomCode);
+    currentName = name;
+    rooms[GAME_ROOM].players.push({ id: socket.id, name });
+    io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
+    socket.join(GAME_ROOM);
   });
 
   socket.on("start", () => {
-    if (!rooms[currentRoom] || rooms[currentRoom].started) return;
-
-    rooms[currentRoom].started = true;
-    io.to(currentRoom).emit("started");
-    sendNewRound(currentRoom);
+    if (rooms[GAME_ROOM].started) return;
+    rooms[GAME_ROOM].started = true;
+    io.to(GAME_ROOM).emit("started");
+    sendNewRound();
   });
 
-  function sendNewRound(roomCode) {
-    const players = rooms[roomCode].players;
+  function sendNewRound() {
+    const players = rooms[GAME_ROOM].players;
     const word = nouns[Math.floor(Math.random() * nouns.length)].trim();
     const imposterIndex = Math.floor(Math.random() * players.length);
 
@@ -57,26 +54,17 @@ io.on("connection", (socket) => {
   }
 
   socket.on("next", () => {
-    if (rooms[currentRoom]) {
-      sendNewRound(currentRoom);
-    }
+    sendNewRound();
   });
 
   socket.on("end", () => {
-    if (rooms[currentRoom]) {
-      io.to(currentRoom).emit("ended");
-      delete rooms[currentRoom];
-    }
+    io.to(GAME_ROOM).emit("ended");
+    rooms[GAME_ROOM] = { players: [], started: false };
   });
 
   socket.on("disconnect", () => {
-    if (currentRoom && rooms[currentRoom]) {
-      rooms[currentRoom].players = rooms[currentRoom].players.filter(p => p.id !== socket.id);
-      io.to(currentRoom).emit("players", rooms[currentRoom].players);
-      if (rooms[currentRoom].players.length === 0) {
-        delete rooms[currentRoom];
-      }
-    }
+    rooms[GAME_ROOM].players = rooms[GAME_ROOM].players.filter(p => p.id !== socket.id);
+    io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
   });
 });
 
