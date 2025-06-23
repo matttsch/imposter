@@ -103,7 +103,7 @@ function App() {
               {players.map((p) => (
                 <li key={p.id} className="player-row">
                   <div className="player-info">
-                    {!started && <span className="remove-btn" onClick={() => kickPlayer(p.id)}>❌</span>}
+                    <span className="remove-btn" onClick={() => kickPlayer(p.id)}>❌</span>
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
