@@ -117,22 +117,6 @@ h1.logo span {
   background: #b62320;
 }
 
-.vote-btn {
-  padding: 0.4rem 0.8rem;
-  font-size: 0.85rem;
-  min-width: 80px;
-  text-align: center;
-}
-
-.vote-btn:hover {
-  background: #30363d;
-}
-
-.players-box ul {
-  list-style: none;
-  padding-left: 0;
-}
-
 .theme-toggle {
   background-color: transparent;
   color: var(--accent-dark);
@@ -149,22 +133,6 @@ h1.logo span {
 .container.light .theme-toggle {
   color: var(--accent-light);
   border-color: var(--border-light);
-}
-
-.word-display {
-  text-align: center;
-  font-size: 2.5rem;
-  margin: 1rem 0;
-  font-weight: bold;
-  padding: 1rem;
-  border: 2px dashed var(--accent-dark);
-  border-radius: 10px;
-  background-color: rgba(88, 166, 255, 0.1);
-}
-
-.container.light .word-display {
-  border-color: var(--accent-light);
-  background-color: rgba(0, 89, 179, 0.05);
 }
 
 .vote-table {
@@ -225,7 +193,7 @@ h1.logo span {
   }
 }
 
-/* Nowa sekcja graczy */
+/* Sekcja graczy */
 .player-list {
   padding: 0;
   list-style: none;
@@ -255,7 +223,43 @@ h1.logo span {
   gap: 0.5rem;
 }
 
+.vote-btn {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  min-width: 80px;
+  text-align: center;
+  background-color: #0066cc;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+}
+
+.vote-btn:hover {
+  background-color: #0052a3;
+  transform: scale(1.05);
+}
+
 .voted-note {
   font-size: 0.75rem;
   color: gray;
+}
+
+/* Podświetlenie wylosowanego hasła lub słowa IMPOSTER */
+.word-display {
+  text-align: center;
+  font-size: 2.5rem;
+  margin: 1rem 0;
+  font-weight: bold;
+  padding: 1rem;
+  border: 2px dashed var(--accent-dark);
+  border-radius: 10px;
+  background-color: rgba(88, 166, 255, 0.1);
+}
+
+.container.light .word-display {
+  border-color: var(--accent-light);
+  background-color: rgba(0, 89, 179, 0.05);
 }
