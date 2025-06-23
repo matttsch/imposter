@@ -15,6 +15,9 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "kebsiary14";
 const GAME_ROOM = "main-room";
+
+const nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
+
 const rooms = {
   [GAME_ROOM]: {
     players: [],
@@ -26,7 +29,6 @@ const rooms = {
     lastResult: null
   }
 };
-const nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
 
 io.on("connection", (socket) => {
   let currentName = null;
@@ -39,10 +41,13 @@ io.on("connection", (socket) => {
 
     currentName = name;
     socket.join(GAME_ROOM);
+
     rooms[GAME_ROOM].players.push({ id: socket.id, name });
     rooms[GAME_ROOM].scores[socket.id] = rooms[GAME_ROOM].scores[socket.id] || 0;
+
     io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
     socket.emit("joined");
+
     if (rooms[GAME_ROOM].started) {
       socket.emit("started");
     }
@@ -63,6 +68,7 @@ io.on("connection", (socket) => {
     const players = room.players;
     const word = nouns[Math.floor(Math.random() * nouns.length)].trim();
     const imposterIndex = Math.floor(Math.random() * players.length);
+
     room.imposterIndex = imposterIndex;
     room.votes = {};
     room.voteHistory = [];
@@ -138,13 +144,16 @@ io.on("connection", (socket) => {
     io.to(GAME_ROOM).emit("ended");
   });
 
-  socket.on("disconnect", () => {
+  socket.on("leave", () => {
     const room = rooms[GAME_ROOM];
     room.players = room.players.filter(p => p.id !== socket.id);
     delete room.scores[socket.id];
     delete room.votes[socket.id];
     io.to(GAME_ROOM).emit("players", room.players);
+    socket.leave(GAME_ROOM);
   });
+
+  // UWAGA: nie wyrzucamy przy rozłączeniu, tylko po „leave”
 });
 
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
