@@ -14,13 +14,23 @@
   --border-light: #cccccc;
 }
 
-body, html {
+body.dark, html.dark {
   margin: 0;
   padding: 0;
   font-family: "Segoe UI", sans-serif;
   min-height: 100vh;
   background-color: var(--bg-dark);
   color: var(--text-dark);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+body.light, html.light {
+  margin: 0;
+  padding: 0;
+  font-family: "Segoe UI", sans-serif;
+  min-height: 100vh;
+  background-color: var(--bg-light);
+  color: var(--text-light);
   transition: background-color 0.3s, color 0.3s;
 }
 
