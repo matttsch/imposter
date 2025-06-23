@@ -33,6 +33,7 @@ io.on("connection", (socket) => {
     socket.join(GAME_ROOM);
     rooms[GAME_ROOM].players.push({ id: socket.id, name });
     io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
+    socket.emit("joined");
     if (rooms[GAME_ROOM].started) {
       socket.emit("started");
     }
