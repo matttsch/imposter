@@ -28,10 +28,8 @@ const rooms = {
   }
 };
 
-// Wczytanie słownika
 let nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
 
-// Reset słownika jeśli pusty
 function reloadNounsIfEmpty() {
   if (nouns.length === 0) {
     nouns = fs.readFileSync("polish_nouns_backup.txt", "utf-8").split("\n").filter(Boolean);
@@ -40,7 +38,6 @@ function reloadNounsIfEmpty() {
   }
 }
 
-// Usuwanie użytego słowa
 function removeUsedWord(word) {
   nouns = nouns.filter(w => w.trim().toLowerCase() !== word.trim().toLowerCase());
   fs.writeFileSync("polish_nouns.txt", nouns.join("\n"), "utf-8");
@@ -55,14 +52,20 @@ io.on("connection", (socket) => {
       return;
     }
 
+    const room = rooms[GAME_ROOM];
+    if (room.players.find(p => p.name.toLowerCase() === name.toLowerCase())) {
+      socket.emit("error", { message: "Gracz o tym imieniu już istnieje." });
+      return;
+    }
+
     currentName = name;
     socket.join(GAME_ROOM);
-    rooms[GAME_ROOM].players.push({ id: socket.id, name });
-    rooms[GAME_ROOM].scores[socket.id] = rooms[GAME_ROOM].scores[socket.id] || 0;
-    io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
+    room.players.push({ id: socket.id, name });
+    room.scores[socket.id] = room.scores[socket.id] || 0;
+    io.to(GAME_ROOM).emit("players", room.players);
     socket.emit("joined");
 
-    if (rooms[GAME_ROOM].started) {
+    if (room.started) {
       socket.emit("started");
     }
   });
@@ -93,7 +96,7 @@ io.on("connection", (socket) => {
 
     players.forEach((player, i) => {
       const isImposter = i === imposterIndex;
-      io.to(player.id).emit("round", { word: isImposter ? "IMPOSTER" : word });
+      io.to(player.id).emit("round", { word: isImposter ? "IMPOSTER" : word, remaining: nouns.length });
     });
   }
 
