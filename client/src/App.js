@@ -95,16 +95,18 @@ function App() {
         <div className="game-box">
           <div className="players-box">
             <strong>Gracze:</strong>
-            <ul>
+            <ul className="player-list">
               {players.map((p) => (
-                <li key={p.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span>{p.name}</span>
-                  {started && !voted && !result && p.id !== socketRef.current.id && (
-                    <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
-                  )}
-                  {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
-                    <em> — zagłosowałeś na {p.name}</em>
-                  )}
+                <li key={p.id} className="player-row">
+                  <span className="player-name">{p.name}</span>
+                  <div className="player-actions">
+                    {started && !voted && !result && p.id !== socketRef.current.id && (
+                      <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
+                    )}
+                    {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
+                      <em className="voted-note">Zagłosowałeś na {p.name}</em>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
