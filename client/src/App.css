@@ -1,48 +1,97 @@
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #0d1117;
+  color: #e6edf3;
+  min-height: 100vh;
+}
+
 .container {
-  padding: 2rem;
+  padding: 1.5rem;
   max-width: 600px;
-  margin: auto;
-  font-family: Arial, sans-serif;
+  margin: 0 auto;
   text-align: center;
 }
 
-.input {
-  width: 100%;
-  padding: 0.8rem;
-  margin-bottom: 1rem;
+.logo {
+  font-size: 2rem;
+  margin-bottom: 2rem;
+  color: #58a6ff;
+}
+
+.logo span {
+  color: #8b949e;
   font-size: 1rem;
+  display: block;
+}
+
+.input {
+  display: block;
+  width: 100%;
+  margin: 1rem 0;
+  padding: 0.75rem;
+  font-size: 1rem;
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 0.5rem;
+  color: white;
 }
 
 .btn {
-  padding: 0.8rem 1.2rem;
-  font-size: 1rem;
-  margin: 0.5rem;
-  cursor: pointer;
-  background: #3b82f6;
+  background: #238636;
   color: white;
   border: none;
+  padding: 0.75rem 1.25rem;
   border-radius: 0.5rem;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-top: 1rem;
 }
 
 .btn.end {
-  background: #ef4444;
-}
-
-.login-box, .game-box {
-  margin-top: 4rem;
-}
-
-.players-box {
-  margin-top: 1rem;
-  text-align: left;
-}
-
-.word-display {
-  font-size: 2rem;
-  margin: 2rem 0;
+  background: #da3633;
 }
 
 .error {
-  color: red;
+  color: #f85149;
   margin-top: 1rem;
+}
+
+.players-box {
+  text-align: left;
+  margin-bottom: 2rem;
+}
+
+.players-box ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.vote-btn {
+  background: #d29922;
+  color: black;
+  border: none;
+  padding: 0.25rem 0.75rem;
+  border-radius: 0.5rem;
+  margin-left: 0.5rem;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.word-display {
+  font-size: 2.5rem;
+  margin: 2rem 0;
+  color: #f0f6fc;
+}
+
+@media (max-width: 480px) {
+  .word-display {
+    font-size: 1.75rem;
+  }
+
+  .btn, .vote-btn {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
 }
