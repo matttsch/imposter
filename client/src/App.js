@@ -1,4 +1,3 @@
-// client/src/App.js
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "./App.css";
@@ -70,11 +69,12 @@ function App() {
   const endGame = () => socketRef.current.emit("end");
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+  const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
 
   return (
     <div className={`container ${theme}`}>
       <h1 className="logo">IMPOSTER <span>by @matttsch</span></h1>
-      <button className="btn" onClick={toggleTheme}>Przełącz motyw</button>
+      <button className="theme-toggle" onClick={toggleTheme} style={{ position: 'absolute', top: 10, right: 10 }}>{themeLabel}</button>
 
       {step === "code" && (
         <div className="login-box">
@@ -112,13 +112,22 @@ function App() {
 
               {result && (
                 <div className="result-box">
-                  <h3>Gracze wytypowali na IMPOSTERA: {result.votedOut}</h3>
+                  {Array.isArray(result.votedOut) ? (
+  <h3>Gracze wytypowali na IMPOSTERA: {result.votedOut.join(', ')}</h3>
+) : (
+  <h3>Gracze wytypowali na IMPOSTERA: {result.votedOut}</h3>
+)}
                   <p>Rzeczywisty imposter: <strong>{result.imposterName}</strong></p>
-                  <ul>
-                    {result.voteHistory.map((v, idx) => (
-                      <li key={idx}>{v.from} → {v.to}</li>
-                    ))}
-                  </ul>
+                  <table className="vote-table">
+  <thead>
+    <tr><th>Gracz</th><th>Zagłosował na</th></tr>
+  </thead>
+  <tbody>
+    {result.voteHistory.map((v, idx) => (
+      <tr key={idx}><td>{v.from}</td><td>{v.to}</td></tr>
+    ))}
+  </tbody>
+</table>
                   <button className="btn" onClick={nextRound}>Kolejna runda</button>
                 </div>
               )}
