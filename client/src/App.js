@@ -106,8 +106,10 @@ function App() {
             <ul className="player-list">
               {players.map((p) => (
                 <li key={p.id} className="player-row">
-                  <span className="remove-btn" onClick={() => removePlayer(p.id)}>❌</span>
-                  <span className="player-name">{p.name}</span>
+                  <div className="player-info">
+                    <span className="remove-btn" onClick={() => removePlayer(p.id)}>❌</span>
+                    <span className="player-name">{p.name}</span>
+                  </div>
                   <div className="player-actions">
                     {started && !voted && !result && p.id !== socketRef.current.id && (
                       <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
