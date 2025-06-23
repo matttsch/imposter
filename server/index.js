@@ -16,7 +16,15 @@ const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "kebsiary14";
 const GAME_ROOM = "main-room";
 const rooms = {
-  [GAME_ROOM]: { players: [], started: false, votes: {}, scores: {}, imposterIndex: null }
+  [GAME_ROOM]: {
+    players: [],
+    started: false,
+    votes: {},
+    scores: {},
+    imposterIndex: null,
+    voteHistory: [],
+    lastResult: null
+  }
 };
 const nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
 
@@ -51,11 +59,14 @@ io.on("connection", (socket) => {
   });
 
   function sendNewRound() {
-    const players = rooms[GAME_ROOM].players;
+    const room = rooms[GAME_ROOM];
+    const players = room.players;
     const word = nouns[Math.floor(Math.random() * nouns.length)].trim();
     const imposterIndex = Math.floor(Math.random() * players.length);
-    rooms[GAME_ROOM].imposterIndex = imposterIndex;
-    rooms[GAME_ROOM].votes = {}; // reset votes
+    room.imposterIndex = imposterIndex;
+    room.votes = {};
+    room.voteHistory = [];
+    room.lastResult = null;
 
     players.forEach((player, i) => {
       const isImposter = i === imposterIndex;
@@ -64,51 +75,70 @@ io.on("connection", (socket) => {
   }
 
   socket.on("vote", (votedId) => {
-    rooms[GAME_ROOM].votes[socket.id] = votedId;
-    const totalVotes = Object.keys(rooms[GAME_ROOM].votes).length;
-    const totalPlayers = rooms[GAME_ROOM].players.length;
+    const room = rooms[GAME_ROOM];
+    room.votes[socket.id] = votedId;
+    room.voteHistory.push({ from: socket.id, to: votedId });
+
+    const totalVotes = Object.keys(room.votes).length;
+    const totalPlayers = room.players.length;
 
     if (totalVotes === totalPlayers) {
       const voteCounts = {};
-      Object.values(rooms[GAME_ROOM].votes).forEach((id) => {
+      Object.values(room.votes).forEach((id) => {
         voteCounts[id] = (voteCounts[id] || 0) + 1;
       });
 
-      const [mostVotedId] = Object.entries(voteCounts).sort((a, b) => b[1] - a[1])[0];
-      const imposter = rooms[GAME_ROOM].players[rooms[GAME_ROOM].imposterIndex];
+      const [mostVotedId, count] = Object.entries(voteCounts).sort((a, b) => b[1] - a[1])[0];
+      const imposter = room.players[room.imposterIndex];
 
       if (mostVotedId === imposter.id) {
-        // All correct voters get a point
-        for (const [voterId, votedId] of Object.entries(rooms[GAME_ROOM].votes)) {
+        for (const [voterId, votedId] of Object.entries(room.votes)) {
           if (votedId === mostVotedId) {
-            rooms[GAME_ROOM].scores[voterId]++;
+            room.scores[voterId]++;
           }
         }
       } else {
-        // Imposter gets a point
-        rooms[GAME_ROOM].scores[imposter.id]++;
+        room.scores[imposter.id]++;
       }
 
-      io.to(GAME_ROOM).emit("scores", rooms[GAME_ROOM].scores);
-      sendNewRound();
+      room.lastResult = {
+        votedOut: room.players.find(p => p.id === mostVotedId)?.name,
+        imposterName: imposter.name,
+        voteHistory: room.voteHistory.map(({ from, to }) => {
+          const fromName = room.players.find(p => p.id === from)?.name;
+          const toName = room.players.find(p => p.id === to)?.name;
+          return { from: fromName, to: toName };
+        })
+      };
+
+      io.to(GAME_ROOM).emit("result", room.lastResult);
+      io.to(GAME_ROOM).emit("scores", room.scores);
     }
   });
 
   socket.on("next", () => {
-    if (!rooms[GAME_ROOM].started) return;
     sendNewRound();
   });
 
   socket.on("end", () => {
-    rooms[GAME_ROOM] = { players: [], started: false, votes: {}, scores: {}, imposterIndex: null };
+    rooms[GAME_ROOM] = {
+      players: [],
+      started: false,
+      votes: {},
+      scores: {},
+      imposterIndex: null,
+      voteHistory: [],
+      lastResult: null
+    };
     io.to(GAME_ROOM).emit("ended");
   });
 
   socket.on("disconnect", () => {
-    rooms[GAME_ROOM].players = rooms[GAME_ROOM].players.filter(p => p.id !== socket.id);
-    delete rooms[GAME_ROOM].scores[socket.id];
-    delete rooms[GAME_ROOM].votes[socket.id];
-    io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
+    const room = rooms[GAME_ROOM];
+    room.players = room.players.filter(p => p.id !== socket.id);
+    delete room.scores[socket.id];
+    delete room.votes[socket.id];
+    io.to(GAME_ROOM).emit("players", room.players);
   });
 });
 
