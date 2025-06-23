@@ -1,5 +1,223 @@
-/* Dodaj to do App.css */
+/* === App.css: kompletny, responsywny styl dla gry Imposter === */
 
+:root {
+  --bg-dark: #0d1117;
+  --text-dark: #c9d1d9;
+  --accent-dark: #58a6ff;
+  --card-dark: #161b22;
+  --border-dark: #30363d;
+
+  --bg-light: #f5f5f5;
+  --text-light: #222;
+  --accent-light: #0059b3;
+  --card-light: #ffffff;
+  --border-light: #cccccc;
+}
+
+body.dark, html.dark {
+  margin: 0;
+  padding: 0;
+  font-family: "Segoe UI", sans-serif;
+  min-height: 100vh;
+  background-color: var(--bg-dark);
+  color: var(--text-dark);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+body.light, html.light {
+  margin: 0;
+  padding: 0;
+  font-family: "Segoe UI", sans-serif;
+  min-height: 100vh;
+  background-color: var(--bg-light);
+  color: var(--text-light);
+  transition: background-color 0.3s, color 0.3s;
+}
+
+.container.dark {
+  background-color: var(--bg-dark);
+  color: var(--text-dark);
+}
+
+.container.light {
+  background-color: var(--bg-light);
+  color: var(--text-light);
+}
+
+h1.logo {
+  text-align: center;
+  margin-top: 1rem;
+  font-size: 2.2rem;
+  color: var(--accent-dark);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1.2;
+}
+
+h1.logo span {
+  font-weight: 600;
+  font-size: 1.4rem;
+  color: gray;
+  margin-top: 0.6rem;
+}
+
+.login-box, .game-box, .round-box, .result-box {
+  margin: 2rem auto;
+  padding: 1.5rem;
+  max-width: 600px;
+  background-color: var(--card-dark);
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+
+.container.light .login-box,
+.container.light .game-box,
+.container.light .round-box,
+.container.light .result-box {
+  background-color: var(--card-light);
+}
+
+.input {
+  display: block;
+  width: 100%;
+  margin: 0.5rem 0;
+  padding: 0.6rem;
+  font-size: 1rem;
+  border: 1px solid var(--border-dark);
+  border-radius: 6px;
+  background: #0d1117;
+  color: var(--text-dark);
+}
+
+.container.light .input {
+  background: #fff;
+  color: var(--text-light);
+  border: 1px solid var(--border-light);
+}
+
+.btn {
+  background: #2ea043;
+  color: #fff;
+  padding: 0.6rem 1.2rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 1rem;
+}
+
+.btn:hover {
+  background: #238636;
+}
+
+.end {
+  background: #da3633;
+}
+.end:hover {
+  background: #b62320;
+}
+
+.vote-btn {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  min-width: 80px;
+  text-align: center;
+}
+
+.vote-btn:hover {
+  background: #30363d;
+}
+
+.players-box ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.theme-toggle {
+  background-color: transparent;
+  color: var(--accent-dark);
+  border: 1px solid var(--border-dark);
+  padding: 0.4rem 0.8rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.container.light .theme-toggle {
+  color: var(--accent-light);
+  border-color: var(--border-light);
+}
+
+.word-display {
+  text-align: center;
+  font-size: 2.5rem;
+  margin: 1rem 0;
+}
+
+.vote-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 1rem;
+  font-size: 0.95rem;
+}
+
+.vote-table th, .vote-table td {
+  border: 1px solid var(--border-dark);
+  padding: 0.5rem;
+  text-align: center;
+}
+
+.container.light .vote-table th,
+.container.light .vote-table td {
+  border-color: var(--border-light);
+}
+
+.vote-table th {
+  background-color: #21262d;
+  color: #58a6ff;
+}
+
+.container.light .vote-table th {
+  background-color: #e8e8e8;
+  color: #0059b3;
+}
+
+.vote-table tr.highlight {
+  background-color: #23863644;
+}
+
+.vote-table tr:hover {
+  background-color: #30363d;
+}
+
+.error {
+  color: #da3633;
+  margin-top: 1rem;
+  text-align: center;
+}
+
+@media (max-width: 480px) {
+  .login-box, .game-box, .round-box, .result-box {
+    margin: 1rem;
+    padding: 1rem;
+  }
+
+  .btn, .vote-btn {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+
+  .word-display {
+    font-size: 1.8rem;
+  }
+}
+
+/* Nowa sekcja graczy */
 .player-list {
   padding: 0;
   list-style: none;
@@ -25,19 +243,11 @@
 
 .player-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-}
-
-.vote-btn {
-  padding: 0.4rem 0.8rem;
-  font-size: 0.85rem;
-  min-width: 80px;
-  text-align: center;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .voted-note {
   font-size: 0.75rem;
   color: gray;
-  margin-top: 0.25rem;
 }
