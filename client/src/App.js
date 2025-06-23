@@ -24,6 +24,7 @@ function App() {
     socket.on("round", ({ word }) => setWord(word));
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
+    socket.on("joined", () => setStep("game"));
     socket.on("error", (err) => {
       setError(err.message);
       setStep("code");
