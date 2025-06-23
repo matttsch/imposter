@@ -1,3 +1,4 @@
+// server/index.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -15,7 +16,6 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "kebsiary14";
 const GAME_ROOM = "main-room";
-
 const rooms = {
   [GAME_ROOM]: {
     players: [],
@@ -29,19 +29,19 @@ const rooms = {
 };
 
 let nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
-
 function reloadNounsIfEmpty() {
   if (nouns.length === 0) {
     nouns = fs.readFileSync("polish_nouns_backup.txt", "utf-8").split("\n").filter(Boolean);
     fs.writeFileSync("polish_nouns.txt", nouns.join("\n"), "utf-8");
-    console.log("Słownik został zresetowany.");
+    console.log("Lista słów została zresetowana.");
   }
 }
-
 function removeUsedWord(word) {
   nouns = nouns.filter(w => w.trim().toLowerCase() !== word.trim().toLowerCase());
   fs.writeFileSync("polish_nouns.txt", nouns.join("\n"), "utf-8");
 }
+
+let nextAllowed = true;
 
 io.on("connection", (socket) => {
   let currentName = null;
@@ -53,8 +53,8 @@ io.on("connection", (socket) => {
     }
 
     const room = rooms[GAME_ROOM];
-    if (room.players.find(p => p.name.toLowerCase() === name.toLowerCase())) {
-      socket.emit("error", { message: "Gracz o tym imieniu już istnieje." });
+    if (room.players.some(p => p.name === name)) {
+      socket.emit("error", { message: "Imię jest już zajęte." });
       return;
     }
 
@@ -64,18 +64,18 @@ io.on("connection", (socket) => {
     room.scores[socket.id] = room.scores[socket.id] || 0;
     io.to(GAME_ROOM).emit("players", room.players);
     socket.emit("joined");
-
     if (room.started) {
       socket.emit("started");
     }
   });
 
   socket.on("start", () => {
-    if (rooms[GAME_ROOM].started) {
+    const room = rooms[GAME_ROOM];
+    if (room.started) {
       socket.emit("error", { message: "Gra już została rozpoczęta." });
       return;
     }
-    rooms[GAME_ROOM].started = true;
+    room.started = true;
     io.to(GAME_ROOM).emit("started");
     sendNewRound();
   });
@@ -148,7 +148,14 @@ io.on("connection", (socket) => {
   });
 
   socket.on("next", () => {
+    if (!nextAllowed) return;
+    nextAllowed = false;
+
     sendNewRound();
+
+    setTimeout(() => {
+      nextAllowed = true;
+    }, 1000);
   });
 
   socket.on("end", () => {
@@ -164,12 +171,12 @@ io.on("connection", (socket) => {
     io.to(GAME_ROOM).emit("ended");
   });
 
-  socket.on("kick", (targetId) => {
+  socket.on("kick", (id) => {
     const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== targetId);
-    delete room.votes[targetId];
-    delete room.scores[targetId];
-    io.to(targetId).emit("ended");
+    room.players = room.players.filter(p => p.id !== id);
+    delete room.scores[id];
+    delete room.votes[id];
+    io.to(id).emit("ended");
     io.to(GAME_ROOM).emit("players", room.players);
   });
 
