@@ -25,7 +25,8 @@ const rooms = {
     scores: {},
     imposterIndex: null,
     voteHistory: [],
-    lastResult: null
+    lastResult: null,
+    currentWord: null // ✅ aktualne słowo tylko raz!
   }
 };
 
@@ -65,6 +66,7 @@ io.on("connection", (socket) => {
     socket.join(GAME_ROOM);
     room.players.push({ id: socket.id, name });
     room.scores[socket.id] = room.scores[socket.id] || 0;
+
     io.to(GAME_ROOM).emit("players", room.players);
     socket.emit("joined");
     if (room.started) {
@@ -93,14 +95,14 @@ io.on("connection", (socket) => {
     reloadNounsIfEmpty();
 
     const word = nouns[Math.floor(Math.random() * nouns.length)].trim();
-    const imposterIndex = Math.floor(Math.random() * players.length);
+    room.currentWord = word;
 
+    const imposterIndex = Math.floor(Math.random() * players.length);
     room.imposterIndex = imposterIndex;
     room.votes = {};
     room.voteHistory = [];
     room.lastResult = null;
 
-    // Wyślij słowo do graczy
     players.forEach((player, i) => {
       const isImposter = i === imposterIndex;
       io.to(player.id).emit("round", {
@@ -109,8 +111,7 @@ io.on("connection", (socket) => {
       });
     });
 
-    // Usuń użyte słowo (dopiero po wysłaniu)
-    removeUsedWord(word);
+    removeUsedWord(word); // ✅ tylko raz
 
     setTimeout(() => {
       roundInProgress = false;
@@ -176,7 +177,8 @@ io.on("connection", (socket) => {
       scores: {},
       imposterIndex: null,
       voteHistory: [],
-      lastResult: null
+      lastResult: null,
+      currentWord: null
     };
     io.to(GAME_ROOM).emit("ended");
   });
