@@ -16,8 +16,6 @@ const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "kebsiary14";
 const GAME_ROOM = "main-room";
 
-const nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
-
 const rooms = {
   [GAME_ROOM]: {
     players: [],
@@ -29,6 +27,24 @@ const rooms = {
     lastResult: null
   }
 };
+
+// Wczytanie słownika
+let nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
+
+// Reset słownika jeśli pusty
+function reloadNounsIfEmpty() {
+  if (nouns.length === 0) {
+    nouns = fs.readFileSync("polish_nouns_backup.txt", "utf-8").split("\n").filter(Boolean);
+    fs.writeFileSync("polish_nouns.txt", nouns.join("\n"), "utf-8");
+    console.log("Słownik został zresetowany.");
+  }
+}
+
+// Usuwanie użytego słowa
+function removeUsedWord(word) {
+  nouns = nouns.filter(w => w.trim().toLowerCase() !== word.trim().toLowerCase());
+  fs.writeFileSync("polish_nouns.txt", nouns.join("\n"), "utf-8");
+}
 
 io.on("connection", (socket) => {
   let currentName = null;
@@ -45,6 +61,7 @@ io.on("connection", (socket) => {
     rooms[GAME_ROOM].scores[socket.id] = rooms[GAME_ROOM].scores[socket.id] || 0;
     io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
     socket.emit("joined");
+
     if (rooms[GAME_ROOM].started) {
       socket.emit("started");
     }
@@ -63,7 +80,11 @@ io.on("connection", (socket) => {
   function sendNewRound() {
     const room = rooms[GAME_ROOM];
     const players = room.players;
+
+    reloadNounsIfEmpty();
     const word = nouns[Math.floor(Math.random() * nouns.length)].trim();
+    removeUsedWord(word);
+
     const imposterIndex = Math.floor(Math.random() * players.length);
     room.imposterIndex = imposterIndex;
     room.votes = {};
@@ -140,25 +161,22 @@ io.on("connection", (socket) => {
     io.to(GAME_ROOM).emit("ended");
   });
 
-  socket.on("leave", () => {
+  socket.on("kick", (targetId) => {
+    const room = rooms[GAME_ROOM];
+    room.players = room.players.filter(p => p.id !== targetId);
+    delete room.votes[targetId];
+    delete room.scores[targetId];
+    io.to(targetId).emit("ended");
+    io.to(GAME_ROOM).emit("players", room.players);
+  });
+
+  socket.on("disconnect", () => {
     const room = rooms[GAME_ROOM];
     room.players = room.players.filter(p => p.id !== socket.id);
     delete room.scores[socket.id];
     delete room.votes[socket.id];
     io.to(GAME_ROOM).emit("players", room.players);
-    socket.leave(GAME_ROOM);
   });
-
-  socket.on("kick", (targetId) => {
-    const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== targetId);
-    delete room.scores[targetId];
-    delete room.votes[targetId];
-    io.to(targetId).emit("ended");
-    io.to(GAME_ROOM).emit("players", room.players);
-  });
-
-  // nie usuwamy przy disconnect
 });
 
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
