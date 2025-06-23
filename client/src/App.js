@@ -102,7 +102,10 @@ function App() {
             <ul className="player-list">
               {players.map((p) => (
                 <li key={p.id} className="player-row">
-                  <span className="player-name">{p.name}</span>
+                  <div className="player-info">
+                    {!started && <span className="remove-btn" onClick={() => kickPlayer(p.id)}>❌</span>}
+                    <span className="player-name">{p.name}</span>
+                  </div>
                   <div className="player-actions">
                     {started && !voted && !result && p.id !== socketRef.current.id && (
                       <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
@@ -110,7 +113,6 @@ function App() {
                     {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
                       <em className="voted-note">Zagłosowałeś na {p.name}</em>
                     )}
-                    {!started && <button className="vote-btn" onClick={() => kickPlayer(p.id)}>❌</button>}
                   </div>
                 </li>
               ))}
