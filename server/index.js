@@ -12,7 +12,7 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 const rooms = {}; // { roomCode: { players: [], started: false, currentWord: '', imposter: '' } }
 const nouns = fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").filter(Boolean);
 
