@@ -1,4 +1,3 @@
-// client/src/App.js
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "./App.css";
@@ -74,13 +73,18 @@ function App() {
 
   const endGame = () => socketRef.current.emit("end");
 
+  const leaveGame = () => {
+    socketRef.current.emit("leave");
+    window.location.reload();
+  };
+
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
 
   return (
     <div className={`container ${theme}`}>
       <h1 className="logo">IMPOSTER <span>by @matttsch</span></h1>
-      <button className="theme-toggle" onClick={toggleTheme} style={{ position: 'absolute', top: 10, right: 10 }}>{themeLabel}</button>
+      <button className="theme-toggle" onClick={toggleTheme}>{themeLabel}</button>
 
       {step === "code" && (
         <div className="login-box">
@@ -153,6 +157,8 @@ function App() {
               <button className="btn end" onClick={endGame}>Koniec gry</button>
             </div>
           )}
+
+          <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
         </div>
       )}
     </div>
