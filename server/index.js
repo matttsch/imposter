@@ -41,13 +41,10 @@ io.on("connection", (socket) => {
 
     currentName = name;
     socket.join(GAME_ROOM);
-
     rooms[GAME_ROOM].players.push({ id: socket.id, name });
     rooms[GAME_ROOM].scores[socket.id] = rooms[GAME_ROOM].scores[socket.id] || 0;
-
     io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
     socket.emit("joined");
-
     if (rooms[GAME_ROOM].started) {
       socket.emit("started");
     }
@@ -68,7 +65,6 @@ io.on("connection", (socket) => {
     const players = room.players;
     const word = nouns[Math.floor(Math.random() * nouns.length)].trim();
     const imposterIndex = Math.floor(Math.random() * players.length);
-
     room.imposterIndex = imposterIndex;
     room.votes = {};
     room.voteHistory = [];
@@ -153,7 +149,16 @@ io.on("connection", (socket) => {
     socket.leave(GAME_ROOM);
   });
 
-  // UWAGA: nie wyrzucamy przy rozłączeniu, tylko po „leave”
+  socket.on("kick", (targetId) => {
+    const room = rooms[GAME_ROOM];
+    room.players = room.players.filter(p => p.id !== targetId);
+    delete room.scores[targetId];
+    delete room.votes[targetId];
+    io.to(targetId).emit("ended");
+    io.to(GAME_ROOM).emit("players", room.players);
+  });
+
+  // nie usuwamy przy disconnect
 });
 
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
