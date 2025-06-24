@@ -8,9 +8,7 @@ const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "Kebsiary14";
@@ -27,7 +25,7 @@ const rooms = {
     lastResult: null,
     usedWords: new Set(),
     currentWord: null,
-    justJoined: new Set(),
+    justJoined: new Set()
   }
 };
 
@@ -58,9 +56,10 @@ function sendNewRound() {
   room.votes = {};
   room.voteHistory = [];
   room.lastResult = null;
-  room.justJoined = new Set();
+  room.justJoined.clear();
 
   room.imposterIndex = Math.floor(Math.random() * players.length);
+
   players.forEach((player, i) => {
     const isImposter = i === room.imposterIndex;
     io.to(player.id).emit("round", {
@@ -88,13 +87,18 @@ io.on("connection", (socket) => {
     socket.join(GAME_ROOM);
     room.players.push({ id: socket.id, name });
     room.scores[socket.id] = room.scores[socket.id] || 0;
-    room.justJoined.add(socket.id);
-    sendPlayersList();
 
     if (room.started && room.currentWord) {
+      // Dołączył w trakcie rundy
+      room.justJoined.add(socket.id);
       socket.emit("joined", { currentWord: room.currentWord });
     } else {
-      socket.emit("joined", {});
+      socket.emit("joined", {}); // klasyczne wejście
+    }
+
+    sendPlayersList();
+    if (room.started) {
+      socket.emit("started");
     }
   });
 
@@ -117,12 +121,10 @@ io.on("connection", (socket) => {
     room.votes[socket.id] = votedId;
     room.voteHistory.push({ from: socket.id, to: votedId });
 
-    const totalVotes = Object.keys(room.votes).length;
     const eligibleVoters = room.players.filter(p => !room.justJoined.has(p.id)).length;
-
-    if (totalVotes === eligibleVoters) {
+    if (Object.keys(room.votes).length === eligibleVoters) {
       const voteCounts = {};
-      Object.values(room.votes).forEach((id) => {
+      Object.values(room.votes).forEach(id => {
         voteCounts[id] = (voteCounts[id] || 0) + 1;
       });
 
@@ -131,9 +133,11 @@ io.on("connection", (socket) => {
         .filter(([_, v]) => v === maxVotes)
         .map(([id]) => id);
 
-      const votedOutNames = topVotedIds.map(id => room.players.find(p => p.id === id)?.name);
-      const imposter = room.players[room.imposterIndex];
+      const votedOutNames = topVotedIds.map(id =>
+        room.players.find(p => p.id === id)?.name
+      );
 
+      const imposter = room.players[room.imposterIndex];
       if (topVotedIds.includes(imposter.id)) {
         for (const [voterId, votedId] of Object.entries(room.votes)) {
           if (votedId === imposter.id) {
@@ -198,8 +202,7 @@ io.on("connection", (socket) => {
     sendPlayersList();
   });
 
-  socket.on("disconnect", (reason) => {
-    if (reason === "transport close") return;
+  socket.on("disconnect", () => {
     const room = rooms[GAME_ROOM];
     room.players = room.players.filter(p => p.id !== socket.id);
     delete room.scores[socket.id];
