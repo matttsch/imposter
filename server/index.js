@@ -57,8 +57,8 @@ function sendNewRound() {
   room.votes = {};
   room.voteHistory = [];
   room.lastResult = null;
-
   room.imposterIndex = Math.floor(Math.random() * players.length);
+
   players.forEach((player, i) => {
     const isImposter = i === room.imposterIndex;
     io.to(player.id).emit("round", {
@@ -88,8 +88,10 @@ io.on("connection", (socket) => {
     room.scores[socket.id] = room.scores[socket.id] || 0;
     sendPlayersList();
 
+    // Jeśli gra już trwa, dołączającemu graczowi pokaż aktualne hasło (nigdy IMPOSTER)
     if (room.started && room.currentWord) {
       socket.emit("joined", { currentWord: room.currentWord });
+      socket.emit("started");
     } else {
       socket.emit("joined", {});
     }
@@ -108,7 +110,6 @@ io.on("connection", (socket) => {
 
   socket.on("vote", (votedId) => {
     const room = rooms[GAME_ROOM];
-
     room.votes[socket.id] = votedId;
     room.voteHistory.push({ from: socket.id, to: votedId });
 
