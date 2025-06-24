@@ -1,3 +1,4 @@
+// server/index.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -9,14 +10,19 @@ app.use(cors());
 
 const server = http.createServer(app);
 const io = new Server(server, {
-  cors: { origin: "*" }
+  cors: { origin: "*" },
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "Kebsiary14";
 const GAME_ROOM = "main-room";
 
-let nouns = [...new Set(fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").map(w => w.trim()).filter(Boolean))];
+let allNouns = fs.readFileSync("polish_nouns.txt", "utf-8")
+  .split("\n")
+  .map(n => n.trim())
+  .filter((v, i, a) => v && a.indexOf(v) === i);
 
 const rooms = {
   [GAME_ROOM]: {
@@ -27,50 +33,48 @@ const rooms = {
     imposterIndex: null,
     voteHistory: [],
     lastResult: null,
-    currentWord: null
-  }
+    usedWords: new Set(),
+    currentWord: null,
+    newcomers: new Set()
+  },
 };
+
+function getRandomWord() {
+  const availableWords = allNouns.filter(w => !rooms[GAME_ROOM].usedWords.has(w));
+  if (availableWords.length === 0) return null;
+  const word = availableWords[Math.floor(Math.random() * availableWords.length)];
+  rooms[GAME_ROOM].usedWords.add(word);
+  return word;
+}
 
 io.on("connection", (socket) => {
   let currentName = null;
 
   socket.on("join", ({ code, name }) => {
-    const room = rooms[GAME_ROOM];
-
     if (code !== ACCESS_CODE) {
       socket.emit("error", { message: "Nieprawidłowy kod dostępu." });
       return;
     }
-
+    const room = rooms[GAME_ROOM];
     if (room.players.find(p => p.name === name)) {
       socket.emit("error", { message: "Gracz o tym imieniu już istnieje." });
       return;
     }
 
-    const player = { id: socket.id, name, canVote: true };
     currentName = name;
-
-    if (room.started) {
-      player.canVote = false;
-    }
-
-    room.players.push(player);
+    socket.join(GAME_ROOM);
+    room.players.push({ id: socket.id, name });
     room.scores[socket.id] = room.scores[socket.id] || 0;
 
-    socket.join(GAME_ROOM);
-    socket.emit("joined");
+    if (room.started) {
+      room.newcomers.add(socket.id);
+      socket.emit("joined", { currentWord: room.currentWord === "IMPOSTER" ? "" : room.currentWord });
+    } else {
+      socket.emit("joined", {});
+    }
     io.to(GAME_ROOM).emit("players", room.players);
-
     if (room.started) {
       socket.emit("started");
-
-      if (room.currentWord) {
-        const isImposter = false;
-        socket.emit("round", {
-          word: isImposter ? "IMPOSTER" : room.currentWord,
-          remaining: nouns.length
-        });
-      }
     }
   });
 
@@ -80,7 +84,6 @@ io.on("connection", (socket) => {
       socket.emit("error", { message: "Gra już została rozpoczęta." });
       return;
     }
-
     room.started = true;
     io.to(GAME_ROOM).emit("started");
     sendNewRound();
@@ -89,42 +92,34 @@ io.on("connection", (socket) => {
   function sendNewRound() {
     const room = rooms[GAME_ROOM];
     const players = room.players;
-
-    const word = nouns[Math.floor(Math.random() * nouns.length)];
-    nouns = nouns.filter(w => w !== word); // usuń użyte słowo
+    const word = getRandomWord();
+    if (!word) return;
 
     const imposterIndex = Math.floor(Math.random() * players.length);
     room.imposterIndex = imposterIndex;
-    room.currentWord = word;
     room.votes = {};
     room.voteHistory = [];
     room.lastResult = null;
+    room.currentWord = word;
+    room.newcomers.clear();
 
     players.forEach((player, i) => {
       const isImposter = i === imposterIndex;
-      player.canVote = true; // reset uprawnień do głosowania
       io.to(player.id).emit("round", {
         word: isImposter ? "IMPOSTER" : word,
-        remaining: nouns.length
+        remaining: allNouns.length - room.usedWords.size
       });
     });
   }
 
   socket.on("vote", (votedId) => {
     const room = rooms[GAME_ROOM];
-    const voter = room.players.find(p => p.id === socket.id);
-
-    if (!voter || !voter.canVote) return;
+    if (room.newcomers.has(socket.id) || room.newcomers.has(votedId)) return;
 
     room.votes[socket.id] = votedId;
     room.voteHistory.push({ from: socket.id, to: votedId });
 
-    voter.canVote = false;
-
-    const totalEligibleVoters = room.players.filter(p => p.canVote !== false).length;
-    const totalVotes = Object.keys(room.votes).length;
-
-    if (totalVotes === totalEligibleVoters) {
+    if (Object.keys(room.votes).length === room.players.filter(p => !room.newcomers.has(p.id)).length) {
       const voteCounts = {};
       Object.values(room.votes).forEach((id) => {
         voteCounts[id] = (voteCounts[id] || 0) + 1;
@@ -176,7 +171,9 @@ io.on("connection", (socket) => {
       imposterIndex: null,
       voteHistory: [],
       lastResult: null,
-      currentWord: null
+      usedWords: new Set(),
+      currentWord: null,
+      newcomers: new Set(),
     };
     io.to(GAME_ROOM).emit("ended");
   });
@@ -186,6 +183,7 @@ io.on("connection", (socket) => {
     room.players = room.players.filter(p => p.id !== id);
     delete room.votes[id];
     delete room.scores[id];
+    room.newcomers.delete(id);
     io.to(id).emit("ended");
     io.to(GAME_ROOM).emit("players", room.players);
   });
@@ -195,6 +193,7 @@ io.on("connection", (socket) => {
     room.players = room.players.filter(p => p.id !== socket.id);
     delete room.votes[socket.id];
     delete room.scores[socket.id];
+    room.newcomers.delete(socket.id);
     io.to(GAME_ROOM).emit("players", room.players);
   });
 
@@ -203,6 +202,7 @@ io.on("connection", (socket) => {
     room.players = room.players.filter(p => p.id !== socket.id);
     delete room.votes[socket.id];
     delete room.scores[socket.id];
+    room.newcomers.delete(socket.id);
     io.to(GAME_ROOM).emit("players", room.players);
   });
 });
