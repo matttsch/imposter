@@ -22,26 +22,25 @@ const rooms = {
     started: false,
     votes: {},
     scores: {},
+    imposterIndex: null,
     voteHistory: [],
     lastResult: null,
     usedWords: new Set(),
     currentWord: null,
-    wordByName: {},      // NEW: słowo przypisane do imienia
-    imposterName: null,  // NEW: impostor wg imienia
-    sessionMap: {},      // NEW: reconnect (name => socket.id)
+    playerWords: {}, // { [playerName]: "word" | "IMPOSTER" }
+    lastActive: {},   // { [playerName]: timestamp }
   }
 };
 
 let nouns = Array.from(new Set(
   fs.readFileSync("polish_nouns.txt", "utf-8")
     .split("\n")
-    .map(w => w.trim())
+    .map(word => word.trim())
     .filter(Boolean)
 ));
 
 function sendPlayersList() {
-  const room = rooms[GAME_ROOM];
-  io.to(GAME_ROOM).emit("players", room.players);
+  io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
 }
 
 function sendNewRound() {
@@ -57,18 +56,17 @@ function sendNewRound() {
   const word = availableWords[Math.floor(Math.random() * availableWords.length)];
   room.usedWords.add(word);
   room.currentWord = word;
-
-  // NEW
-  room.wordByName = {};
-  room.imposterName = players[Math.floor(Math.random() * players.length)].name;
   room.votes = {};
   room.voteHistory = [];
   room.lastResult = null;
+  room.playerWords = {};
 
-  players.forEach((player) => {
-    const wordToSend = player.name === room.imposterName ? "IMPOSTER" : word;
-    room.wordByName[player.name] = wordToSend;
+  room.imposterIndex = Math.floor(Math.random() * players.length);
 
+  players.forEach((player, i) => {
+    const isImposter = i === room.imposterIndex;
+    const wordToSend = isImposter ? "IMPOSTER" : word;
+    room.playerWords[player.name] = wordToSend;
     io.to(player.id).emit("round", {
       word: wordToSend,
       remaining: nouns.length - room.usedWords.size
@@ -81,27 +79,31 @@ io.on("connection", (socket) => {
 
   socket.on("join", ({ code, name }) => {
     const room = rooms[GAME_ROOM];
+
     if (code !== ACCESS_CODE) {
       socket.emit("error", { message: "Nieprawidłowy kod dostępu." });
       return;
     }
 
-    const existing = room.players.find(p => p.name === name);
-    if (existing) {
-      // reconnect
-      existing.id = socket.id;
+    const existingPlayer = room.players.find(p => p.name === name);
+    currentName = name;
+
+    if (existingPlayer) {
+      existingPlayer.id = socket.id;
     } else {
       room.players.push({ id: socket.id, name });
       room.scores[socket.id] = 0;
     }
 
-    currentName = name;
-    room.sessionMap[name] = socket.id;
+    room.lastActive[name] = Date.now();
     socket.join(GAME_ROOM);
     sendPlayersList();
 
-    if (room.started && room.currentWord && name in room.wordByName) {
-      socket.emit("joined", { currentWord: room.wordByName[name] });
+    const alreadyStarted = room.started && room.currentWord;
+
+    if (alreadyStarted) {
+      const word = room.playerWords[name] || room.currentWord;
+      socket.emit("joined", { currentWord: word });
     } else {
       socket.emit("joined", {});
     }
@@ -138,21 +140,21 @@ io.on("connection", (socket) => {
         .map(([id]) => id);
 
       const votedOutNames = topVotedIds.map(id => room.players.find(p => p.id === id)?.name);
-      const imposter = room.players.find(p => p.name === room.imposterName);
+      const imposter = room.players[room.imposterIndex];
 
-      if (imposter && topVotedIds.includes(imposter.id)) {
+      if (topVotedIds.includes(imposter.id)) {
         for (const [voterId, votedId] of Object.entries(room.votes)) {
           if (votedId === imposter.id) {
             room.scores[voterId]++;
           }
         }
-      } else if (imposter) {
+      } else {
         room.scores[imposter.id]++;
       }
 
       room.lastResult = {
         votedOut: votedOutNames.length === 1 ? votedOutNames[0] : votedOutNames,
-        imposterName: imposter?.name,
+        imposterName: imposter.name,
         voteHistory: room.voteHistory.map(({ from, to }) => {
           const fromName = room.players.find(p => p.id === from)?.name;
           const toName = room.players.find(p => p.id === to)?.name;
@@ -165,7 +167,9 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("next", () => sendNewRound());
+  socket.on("next", () => {
+    sendNewRound();
+  });
 
   socket.on("end", () => {
     rooms[GAME_ROOM] = {
@@ -173,37 +177,47 @@ io.on("connection", (socket) => {
       started: false,
       votes: {},
       scores: {},
+      imposterIndex: null,
       voteHistory: [],
       lastResult: null,
       usedWords: new Set(),
       currentWord: null,
-      wordByName: {},
-      imposterName: null,
-      sessionMap: {},
+      playerWords: {},
+      lastActive: {}
     };
     io.to(GAME_ROOM).emit("ended");
   });
 
   socket.on("kick", (id) => {
     const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== id);
-    delete room.scores[id];
-    delete room.votes[id];
-    io.to(id).emit("ended");
-    sendPlayersList();
+    const kicked = room.players.find(p => p.id === id);
+    if (kicked) {
+      room.players = room.players.filter(p => p.id !== id);
+      delete room.scores[id];
+      delete room.votes[id];
+      delete room.playerWords[kicked.name];
+      delete room.lastActive[kicked.name];
+      io.to(id).emit("ended");
+      sendPlayersList();
+    }
   });
 
   socket.on("leave", () => {
     const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== socket.id);
-    delete room.scores[socket.id];
-    delete room.votes[socket.id];
-    sendPlayersList();
+    const leaving = room.players.find(p => p.id === socket.id);
+    if (leaving) {
+      room.players = room.players.filter(p => p.id !== socket.id);
+      delete room.scores[socket.id];
+      delete room.votes[socket.id];
+      delete room.playerWords[leaving.name];
+      delete room.lastActive[leaving.name];
+      sendPlayersList();
+    }
   });
 
   socket.on("disconnect", () => {
-    // Nie usuwamy z room.players – reconnect działa przez name
-    sendPlayersList();
+    // Nie usuwamy gracza natychmiast – jego sesja może powrócić
+    // Czasowe czyszczenie obsługujemy osobnym mechanizmem (jeśli potrzebne)
   });
 });
 
