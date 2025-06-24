@@ -15,6 +15,7 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "Kebsiary14";
 const GAME_ROOM = "main-room";
+const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
 const rooms = {
   [GAME_ROOM]: {
@@ -23,10 +24,12 @@ const rooms = {
     votes: {},
     scores: {},
     imposterIndex: null,
+    imposterId: null,
     voteHistory: [],
     lastResult: null,
     usedWords: new Set(),
-    currentWord: null
+    currentWord: null,
+    disconnected: {},
   }
 };
 
@@ -38,7 +41,8 @@ let nouns = Array.from(new Set(
 ));
 
 function sendPlayersList() {
-  io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
+  const room = rooms[GAME_ROOM];
+  io.to(GAME_ROOM).emit("players", room.players);
 }
 
 function sendNewRound() {
@@ -58,10 +62,12 @@ function sendNewRound() {
   room.voteHistory = [];
   room.lastResult = null;
 
-  room.imposterIndex = Math.floor(Math.random() * players.length);
+  const imposterIndex = Math.floor(Math.random() * players.length);
+  room.imposterIndex = imposterIndex;
+  room.imposterId = players[imposterIndex].id;
 
   players.forEach((player, i) => {
-    const isImposter = i === room.imposterIndex;
+    const isImposter = player.id === room.imposterId;
     io.to(player.id).emit("round", {
       word: isImposter ? "IMPOSTER" : word,
       remaining: nouns.length - room.usedWords.size
@@ -78,6 +84,33 @@ io.on("connection", (socket) => {
       socket.emit("error", { message: "Nieprawidłowy kod dostępu." });
       return;
     }
+
+    // Reconnect
+    if (room.disconnected[name]) {
+      clearTimeout(room.disconnected[name].timeout);
+      const existing = room.disconnected[name];
+      room.players.push({ id: socket.id, name });
+      room.scores[socket.id] = room.scores[existing.oldId] || 0;
+      delete room.scores[existing.oldId];
+      delete room.disconnected[name];
+      currentName = name;
+      socket.join(GAME_ROOM);
+      sendPlayersList();
+
+      if (room.started && room.currentWord) {
+        const isImposter = socket.id === room.imposterId;
+        socket.emit("joined", {
+          currentWord: isImposter ? "IMPOSTER" : room.currentWord,
+          remaining: nouns.length - room.usedWords.size
+        });
+        socket.emit("started");
+      } else {
+        socket.emit("joined", {});
+      }
+      return;
+    }
+
+    // New user
     if (room.players.find(p => p.name === name)) {
       socket.emit("error", { message: "Imię jest już zajęte." });
       return;
@@ -87,11 +120,14 @@ io.on("connection", (socket) => {
     socket.join(GAME_ROOM);
     room.players.push({ id: socket.id, name });
     room.scores[socket.id] = room.scores[socket.id] || 0;
-
     sendPlayersList();
 
     if (room.started && room.currentWord) {
-      socket.emit("joined", { currentWord: room.currentWord });
+      const isImposter = socket.id === room.imposterId;
+      socket.emit("joined", {
+        currentWord: isImposter ? "IMPOSTER" : room.currentWord,
+        remaining: nouns.length - room.usedWords.size
+      });
       socket.emit("started");
     } else {
       socket.emit("joined", {});
@@ -129,7 +165,7 @@ io.on("connection", (socket) => {
         .map(([id]) => id);
 
       const votedOutNames = topVotedIds.map(id => room.players.find(p => p.id === id)?.name);
-      const imposter = room.players[room.imposterIndex];
+      const imposter = room.players.find(p => p.id === room.imposterId);
 
       if (topVotedIds.includes(imposter.id)) {
         for (const [voterId, votedId] of Object.entries(room.votes)) {
@@ -145,8 +181,8 @@ io.on("connection", (socket) => {
         votedOut: votedOutNames.length === 1 ? votedOutNames[0] : votedOutNames,
         imposterName: imposter.name,
         voteHistory: room.voteHistory.map(({ from, to }) => {
-          const fromName = room.players.find(p => p.id === from)?.name;
-          const toName = room.players.find(p => p.id === to)?.name;
+          const fromName = room.players.find(p => p.id === from)?.name || from;
+          const toName = room.players.find(p => p.id === to)?.name || to;
           return { from: fromName, to: toName };
         })
       };
@@ -167,38 +203,58 @@ io.on("connection", (socket) => {
       votes: {},
       scores: {},
       imposterIndex: null,
+      imposterId: null,
       voteHistory: [],
       lastResult: null,
       usedWords: new Set(),
-      currentWord: null
+      currentWord: null,
+      disconnected: {},
     };
     io.to(GAME_ROOM).emit("ended");
   });
 
   socket.on("kick", (id) => {
     const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== id);
-    delete room.scores[id];
-    delete room.votes[id];
-    io.to(id).emit("ended");
-    sendPlayersList();
+    const kicked = room.players.find(p => p.id === id);
+    if (kicked) {
+      room.players = room.players.filter(p => p.id !== id);
+      delete room.scores[id];
+      delete room.votes[id];
+      io.to(id).emit("ended");
+      sendPlayersList();
+    }
   });
 
   socket.on("leave", () => {
     const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== socket.id);
-    delete room.scores[socket.id];
-    delete room.votes[socket.id];
-    sendPlayersList();
+    const player = room.players.find(p => p.id === socket.id);
+    if (player) {
+      room.players = room.players.filter(p => p.id !== socket.id);
+      delete room.scores[socket.id];
+      delete room.votes[socket.id];
+      sendPlayersList();
+    }
   });
 
   socket.on("disconnect", () => {
     const room = rooms[GAME_ROOM];
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+
     room.players = room.players.filter(p => p.id !== socket.id);
-    delete room.scores[socket.id];
     delete room.votes[socket.id];
+
+    room.disconnected[player.name] = {
+      oldId: socket.id,
+      timeout: setTimeout(() => {
+        delete room.scores[socket.id];
+        delete room.disconnected[player.name];
+        sendPlayersList();
+      }, SESSION_TIMEOUT_MS)
+    };
+
     sendPlayersList();
   });
 });
 
-server.listen(PORT, () => console.log(`✅ Server listening on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
