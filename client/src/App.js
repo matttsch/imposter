@@ -1,11 +1,12 @@
+// client/src/App.js
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "./App.css";
 
 function App() {
   const [step, setStep] = useState("code");
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
+  const [code, setCode] = useState(localStorage.getItem("code") || "");
+  const [name, setName] = useState(localStorage.getItem("name") || "");
   const [players, setPlayers] = useState([]);
   const [word, setWord] = useState(null);
   const [started, setStarted] = useState(false);
@@ -33,10 +34,17 @@ function App() {
       setResult(null);
     });
     socket.on("started", () => setStarted(true));
-    socket.on("ended", () => window.location.reload());
+    socket.on("ended", () => {
+      localStorage.removeItem("code");
+      localStorage.removeItem("name");
+      window.location.reload();
+    });
     socket.on("joined", ({ currentWord }) => {
+      if (currentWord) {
+        setStarted(true);
+        setWord(currentWord);
+      }
       setStep("game");
-      if (currentWord) setWord(currentWord);
     });
     socket.on("error", (err) => {
       setError(err.message);
@@ -56,10 +64,13 @@ function App() {
 
   const joinRoom = () => {
     setError(null);
+    localStorage.setItem("code", code);
+    localStorage.setItem("name", name);
     socketRef.current.emit("join", { code, name });
   };
 
   const startGame = () => {
+    setError(null);
     socketRef.current.emit("start");
   };
 
@@ -71,16 +82,16 @@ function App() {
   };
 
   const nextRound = () => {
-    socketRef.current.emit("next");
     setResult(null);
+    socketRef.current.emit("next");
   };
 
-  const endGame = () => {
-    socketRef.current.emit("end");
-  };
+  const endGame = () => socketRef.current.emit("end");
 
   const leaveGame = () => {
     socketRef.current.emit("leave");
+    localStorage.removeItem("code");
+    localStorage.removeItem("name");
     window.location.reload();
   };
 
@@ -91,22 +102,12 @@ function App() {
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
 
-  useEffect(() => {
-    const reconnect = () => {
-      if (socketRef.current?.connected) {
-        socketRef.current.emit("reconnect-ack");
-      }
-    };
-    window.addEventListener("focus", reconnect);
-    return () => window.removeEventListener("focus", reconnect);
-  }, []);
+  const currentId = socketRef.current?.id;
 
   return (
     <div className={`container ${theme}`}>
       <h1 className="logo">IMPOSTER <span>by @matttsch</span></h1>
-      <button className="theme-toggle" onClick={toggleTheme}>
-        {themeLabel}
-      </button>
+      <button className="theme-toggle" onClick={toggleTheme}>{themeLabel}</button>
 
       {step === "code" && (
         <div className="login-box">
@@ -129,7 +130,7 @@ function App() {
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started && !voted && !result && p.id !== socketRef.current.id && (
+                    {started && !voted && !result && p.id !== currentId && (
                       <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
                     )}
                     {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
@@ -146,6 +147,11 @@ function App() {
           ) : (
             <div className="round-box">
               <h2 className="word-display">{word}</h2>
+              {remaining !== null && (
+                <p style={{ textAlign: "right", fontSize: "0.8rem", color: "gray", marginTop: "0.5rem" }}>
+                  Pozostało słów: {remaining}
+                </p>
+              )}
 
               {result && (
                 <div className="result-box">
@@ -177,9 +183,7 @@ function App() {
                 </div>
               )}
 
-              {!result && (
-                <p>{!voted ? "Oddaj swój głos" : "Czekamy na pozostałych graczy..."}</p>
-              )}
+              {!result && <p>{!voted ? "Oddaj swój głos" : "Czekamy na pozostałych graczy..."}</p>}
 
               <button className="btn end" onClick={endGame}>Koniec gry</button>
             </div>
@@ -187,12 +191,6 @@ function App() {
 
           <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
         </div>
-      )}
-
-      {remaining !== null && (
-        <p style={{ fontSize: "0.8rem", textAlign: "right", marginTop: "1rem", opacity: 0.6 }}>
-          Pozostało słów: {remaining}
-        </p>
       )}
     </div>
   );
