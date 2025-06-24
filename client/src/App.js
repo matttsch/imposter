@@ -15,7 +15,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [canVote, setCanVote] = useState(true);
-  const [remaining, setRemaining] = useState(null);
+  const [remainingWords, setRemainingWords] = useState(null);
 
   const socketRef = useRef(null);
 
@@ -29,10 +29,10 @@ function App() {
     socket.on("players", setPlayers);
     socket.on("round", ({ word, remaining }) => {
       setWord(word);
-      setRemaining(remaining);
       setVoted(false);
       setResult(null);
       setCanVote(true);
+      setRemainingWords(remaining);
     });
 
     socket.on("started", () => setStarted(true));
@@ -43,7 +43,8 @@ function App() {
       setStep("game");
       if (currentWord) {
         setWord(currentWord);
-        setCanVote(false); // dołączył w trakcie rundy
+        setStarted(true);
+        setCanVote(false);
       }
     });
 
@@ -126,7 +127,7 @@ function App() {
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started && !voted && !result && p.id !== socketRef.current.id && (
+                    {started && !voted && !result && canVote && p.id !== socketRef.current.id && (
                       <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
                     )}
                     {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
@@ -143,6 +144,11 @@ function App() {
           ) : (
             <div className="round-box">
               <h2 className="word-display">{word}</h2>
+              {remainingWords !== null && (
+                <p style={{ fontSize: "0.75rem", textAlign: "right", margin: "0" }}>
+                  Pozostało słów: {remainingWords}
+                </p>
+              )}
 
               {result && (
                 <div className="result-box">
@@ -174,14 +180,12 @@ function App() {
                 </div>
               )}
 
-              {!result && (
-                <p>{!canVote ? "Nie możesz głosować w tej rundzie." : !voted ? "Oddaj swój głos" : "Czekamy na pozostałych graczy..."}</p>
-              )}
+              {!result && <p>{!voted ? "Oddaj swój głos" : "Czekamy na pozostałych graczy..."}</p>}
 
               <button className="btn end" onClick={endGame}>Koniec gry</button>
-              {remaining !== null && <div style={{ fontSize: "0.8rem", marginTop: "0.5rem", textAlign: "right" }}>Pozostało słów: {remaining}</div>}
             </div>
           )}
+
           <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
         </div>
       )}
