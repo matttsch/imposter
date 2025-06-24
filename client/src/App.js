@@ -26,22 +26,30 @@ function App() {
     const socket = socketRef.current;
 
     socket.on("players", setPlayers);
+
     socket.on("round", ({ word, remaining }) => {
       setWord(word);
       setVoted(false);
       setResult(null);
-      setRemaining(remaining);
+      if (remaining !== undefined) setRemaining(remaining);
     });
+
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
+
     socket.on("joined", (data) => {
+      if (data.currentWord) {
+        setWord(data.currentWord);
+        setStarted(true);
+      }
       setStep("game");
-      if (data.currentWord) setWord(data.currentWord);
     });
+
     socket.on("error", (err) => {
       setError(err.message);
       setStep("code");
     });
+
     socket.on("scores", setScores);
     socket.on("result", setResult);
 
@@ -128,10 +136,7 @@ function App() {
               {players.map((p) => (
                 <li key={p.id} className="player-row">
                   <div className="player-info">
-                    <span
-                      className="remove-btn"
-                      onClick={() => removePlayer(p.id)}
-                    >
+                    <span className="remove-btn" onClick={() => removePlayer(p.id)}>
                       ❌
                     </span>
                     <span className="player-name">{p.name}</span>
@@ -142,14 +147,9 @@ function App() {
                         Głosuj
                       </button>
                     )}
-                    {voted &&
-                      result?.voteHistory.some(
-                        (v) => v.from === name && v.to === p.name
-                      ) && (
-                        <em className="voted-note">
-                          Zagłosowałeś na {p.name}
-                        </em>
-                      )}
+                    {voted && result?.voteHistory.some((v) => v.from === name && v.to === p.name) && (
+                      <em className="voted-note">Zagłosowałeś na {p.name}</em>
+                    )}
                   </div>
                 </li>
               ))}
@@ -164,12 +164,17 @@ function App() {
             <div className="round-box">
               <h2 className="word-display">{word}</h2>
 
+              {remaining !== null && (
+                <p style={{ fontSize: "0.8rem", textAlign: "right", opacity: 0.7 }}>
+                  Pozostało słów: {remaining}
+                </p>
+              )}
+
               {result && (
                 <div className="result-box">
                   {Array.isArray(result.votedOut) ? (
                     <h3>
-                      Gracze wytypowali na IMPOSTERA:{" "}
-                      {result.votedOut.join(", ")}
+                      Gracze wytypowali na IMPOSTERA: {result.votedOut.join(", ")}
                     </h3>
                   ) : (
                     <h3>
@@ -177,8 +182,7 @@ function App() {
                     </h3>
                   )}
                   <p>
-                    Rzeczywisty imposter:{" "}
-                    <strong>{result.imposterName}</strong>
+                    Rzeczywisty imposter: <strong>{result.imposterName}</strong>
                   </p>
                   <table className="vote-table">
                     <thead>
@@ -189,10 +193,9 @@ function App() {
                     </thead>
                     <tbody>
                       {result.voteHistory.map((v, idx) => {
-                        const correct =
-                          v.to === result.imposterName ||
-                          (Array.isArray(result.imposterName) &&
-                            result.imposterName.includes(v.to));
+                        const correct = Array.isArray(result.imposterName)
+                          ? result.imposterName.includes(v.to)
+                          : v.to === result.imposterName;
                         return (
                           <tr key={idx} className={correct ? "highlight" : ""}>
                             <td>{v.from}</td>
@@ -215,11 +218,6 @@ function App() {
               <button className="btn end" onClick={endGame}>
                 Koniec gry
               </button>
-              {remaining !== null && (
-                <p style={{ fontSize: "0.75rem", textAlign: "right", marginTop: "1rem" }}>
-                  Pozostało słów: {remaining}
-                </p>
-              )}
             </div>
           )}
 
