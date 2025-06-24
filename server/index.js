@@ -1,211 +1,191 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const fs = require("fs");
-const cors = require("cors");
+import React, { useState, useEffect, useRef } from "react";
+import io from "socket.io-client";
+import "./App.css";
 
-const app = express();
-app.use(cors());
+function App() {
+  const [step, setStep] = useState("code");
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
+  const [players, setPlayers] = useState([]);
+  const [word, setWord] = useState(null);
+  const [started, setStarted] = useState(false);
+  const [error, setError] = useState(null);
+  const [scores, setScores] = useState({});
+  const [voted, setVoted] = useState(false);
+  const [result, setResult] = useState(null);
+  const [remaining, setRemaining] = useState(null);
+  const [theme, setTheme] = useState("dark");
 
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" }
-});
+  const socketRef = useRef(null);
 
-const PORT = process.env.PORT || 3001;
-const ACCESS_CODE = "Kebsiary14";
-const GAME_ROOM = "main-room";
+  const getClientId = () => {
+    let id = localStorage.getItem("clientId");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("clientId", id);
+    }
+    return id;
+  };
 
-const rooms = {
-  [GAME_ROOM]: {
-    players: [],
-    started: false,
-    votes: {},
-    scores: {},
-    imposterIndex: null,
-    voteHistory: [],
-    lastResult: null,
-    usedWords: new Set(),
-    currentWord: null,
-    disconnectTimers: {}
-  }
-};
-
-let nouns = Array.from(new Set(
-  fs.readFileSync("polish_nouns.txt", "utf-8")
-    .split("\n")
-    .map(word => word.trim())
-    .filter(Boolean)
-));
-
-function sendPlayersList() {
-  io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
-}
-
-function sendNewRound() {
-  const room = rooms[GAME_ROOM];
-  const availableWords = nouns.filter(w => !room.usedWords.has(w));
-  if (availableWords.length === 0) {
-    io.to(GAME_ROOM).emit("error", { message: "Skończyły się słowa!" });
-    return;
-  }
-
-  const word = availableWords[Math.floor(Math.random() * availableWords.length)];
-  room.usedWords.add(word);
-  room.currentWord = word;
-  room.votes = {};
-  room.voteHistory = [];
-  room.lastResult = null;
-
-  room.imposterIndex = Math.floor(Math.random() * room.players.length);
-  room.players.forEach((player, i) => {
-    const isImposter = i === room.imposterIndex;
-    io.to(player.id).emit("round", {
-      word: isImposter ? "IMPOSTER" : word,
-      remaining: nouns.length - room.usedWords.size
+  useEffect(() => {
+    socketRef.current = io("https://imposter-014f.onrender.com", {
+      autoConnect: false,
     });
-  });
+
+    const socket = socketRef.current;
+
+    socket.on("players", setPlayers);
+    socket.on("round", ({ word, remaining }) => {
+      setWord(word);
+      setRemaining(remaining);
+      setVoted(false);
+      setResult(null);
+    });
+    socket.on("started", () => setStarted(true));
+    socket.on("ended", () => window.location.reload());
+    socket.on("joined", ({ currentWord }) => {
+      setStep("game");
+      if (currentWord) setWord(currentWord);
+    });
+    socket.on("error", (err) => {
+      setError(err.message);
+      setStep("code");
+    });
+    socket.on("scores", setScores);
+    socket.on("result", setResult);
+
+    socket.connect();
+    return () => socket.disconnect();
+  }, []);
+
+  useEffect(() => {
+    document.body.className = theme;
+    document.documentElement.className = theme;
+  }, [theme]);
+
+  const joinRoom = () => {
+    setError(null);
+    const clientId = getClientId();
+    socketRef.current.emit("join", { code, name, clientId });
+  };
+
+  const startGame = () => {
+    setError(null);
+    socketRef.current.emit("start");
+  };
+
+  const voteImposter = (id) => {
+    if (!voted) {
+      socketRef.current.emit("vote", id);
+      setVoted(true);
+    }
+  };
+
+  const nextRound = () => {
+    setResult(null);
+    socketRef.current.emit("next");
+  };
+
+  const endGame = () => socketRef.current.emit("end");
+  const leaveGame = () => {
+    socketRef.current.emit("leave");
+    window.location.reload();
+  };
+
+  const removePlayer = (id) => {
+    socketRef.current.emit("kick", id);
+  };
+
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+  const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
+
+  return (
+    <div className={`container ${theme}`}>
+      <h1 className="logo">IMPOSTER <span>by @matttsch</span></h1>
+      <button className="theme-toggle" onClick={toggleTheme}>{themeLabel}</button>
+
+      {step === "code" && (
+        <div className="login-box">
+          <input className="input" placeholder="Kod dostępu" value={code} onChange={(e) => setCode(e.target.value)} />
+          <input className="input" placeholder="Imię" value={name} onChange={(e) => setName(e.target.value)} />
+          <button className="btn" onClick={joinRoom}>Dołącz</button>
+          {error && <p className="error">{error}</p>}
+        </div>
+      )}
+
+      {step === "game" && (
+        <div className="game-box">
+          <div className="players-box">
+            <strong>Gracze:</strong>
+            <ul className="player-list">
+              {players.map((p) => (
+                <li key={p.id} className="player-row">
+                  <div className="player-info">
+                    <span className="remove-btn" onClick={() => removePlayer(p.id)}>❌</span>
+                    <span className="player-name">{p.name}</span>
+                  </div>
+                  <div className="player-actions">
+                    {started && !voted && !result && p.id !== socketRef.current.id && (
+                      <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
+                    )}
+                    {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
+                      <em className="voted-note">Zagłosowałeś na {p.name}</em>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {!started ? (
+            <button className="btn" onClick={startGame}>Start gry</button>
+          ) : (
+            <div className="round-box">
+              <h2 className="word-display">{word}</h2>
+
+              {result && (
+                <div className="result-box">
+                  {Array.isArray(result.votedOut) ? (
+                    <h3>Gracze wytypowali na IMPOSTERA: {result.votedOut.join(', ')}</h3>
+                  ) : (
+                    <h3>Gracze wytypowali na IMPOSTERA: {result.votedOut}</h3>
+                  )}
+                  <p>Rzeczywisty imposter: <strong>{result.imposterName}</strong></p>
+                  <table className="vote-table">
+                    <thead>
+                      <tr><th>Gracz</th><th>Zagłosował na</th></tr>
+                    </thead>
+                    <tbody>
+                      {result.voteHistory.map((v, idx) => {
+                        const correct = Array.isArray(result.imposterName)
+                          ? result.imposterName.includes(v.to)
+                          : v.to === result.imposterName;
+                        return (
+                          <tr key={idx} className={correct ? "highlight" : ""}>
+                            <td>{v.from}</td>
+                            <td>{v.to}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <button className="btn" onClick={nextRound}>Kolejna runda</button>
+                </div>
+              )}
+
+              {!result && <p>{!voted ? "Oddaj swój głos" : "Czekamy na pozostałych graczy..."}</p>}
+
+              {remaining !== null && <p style={{ fontSize: "0.8rem", textAlign: "right" }}>Pozostało słów: {remaining}</p>}
+
+              <button className="btn end" onClick={endGame}>Koniec gry</button>
+            </div>
+          )}
+
+          <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
-io.on("connection", (socket) => {
-  socket.on("join", ({ code, name, clientId }) => {
-    const room = rooms[GAME_ROOM];
-    if (code !== ACCESS_CODE) {
-      socket.emit("error", { message: "Nieprawidłowy kod dostępu." });
-      return;
-    }
-
-    const existing = room.players.find(p => p.clientId === clientId);
-    if (existing) {
-      // reconnect
-      clearTimeout(room.disconnectTimers[clientId]);
-      existing.id = socket.id;
-      socket.join(GAME_ROOM);
-      sendPlayersList();
-      socket.emit("joined", room.started && room.currentWord ? { currentWord: room.currentWord } : {});
-      if (room.started) socket.emit("started");
-      return;
-    }
-
-    if (room.players.find(p => p.name === name)) {
-      socket.emit("error", { message: "Imię jest już zajęte." });
-      return;
-    }
-
-    const player = { id: socket.id, name, clientId };
-    room.players.push(player);
-    room.scores[socket.id] = room.scores[socket.id] || 0;
-
-    socket.join(GAME_ROOM);
-    sendPlayersList();
-    socket.emit("joined", room.started && room.currentWord ? { currentWord: room.currentWord } : {});
-    if (room.started) socket.emit("started");
-  });
-
-  socket.on("start", () => {
-    const room = rooms[GAME_ROOM];
-    if (room.started) {
-      socket.emit("error", { message: "Gra już została rozpoczęta." });
-      return;
-    }
-    room.started = true;
-    io.to(GAME_ROOM).emit("started");
-    sendNewRound();
-  });
-
-  socket.on("vote", (votedId) => {
-    const room = rooms[GAME_ROOM];
-    room.votes[socket.id] = votedId;
-    room.voteHistory.push({ from: socket.id, to: votedId });
-
-    const totalVotes = Object.keys(room.votes).length;
-    const totalPlayers = room.players.length;
-
-    if (totalVotes === totalPlayers) {
-      const voteCounts = {};
-      Object.values(room.votes).forEach((id) => {
-        voteCounts[id] = (voteCounts[id] || 0) + 1;
-      });
-
-      const maxVotes = Math.max(...Object.values(voteCounts));
-      const topVotedIds = Object.entries(voteCounts)
-        .filter(([_, v]) => v === maxVotes)
-        .map(([id]) => id);
-
-      const votedOutNames = topVotedIds.map(id => room.players.find(p => p.id === id)?.name);
-      const imposter = room.players[room.imposterIndex];
-
-      if (topVotedIds.includes(imposter.id)) {
-        for (const [voterId, votedId] of Object.entries(room.votes)) {
-          if (votedId === imposter.id) {
-            room.scores[voterId]++;
-          }
-        }
-      } else {
-        room.scores[imposter.id]++;
-      }
-
-      room.lastResult = {
-        votedOut: votedOutNames.length === 1 ? votedOutNames[0] : votedOutNames,
-        imposterName: imposter.name,
-        voteHistory: room.voteHistory.map(({ from, to }) => {
-          const fromName = room.players.find(p => p.id === from)?.name;
-          const toName = room.players.find(p => p.id === to)?.name;
-          return { from: fromName, to: toName };
-        })
-      };
-
-      io.to(GAME_ROOM).emit("result", room.lastResult);
-      io.to(GAME_ROOM).emit("scores", room.scores);
-    }
-  });
-
-  socket.on("next", () => {
-    sendNewRound();
-  });
-
-  socket.on("end", () => {
-    rooms[GAME_ROOM] = {
-      players: [],
-      started: false,
-      votes: {},
-      scores: {},
-      imposterIndex: null,
-      voteHistory: [],
-      lastResult: null,
-      usedWords: new Set(),
-      currentWord: null,
-      disconnectTimers: {}
-    };
-    io.to(GAME_ROOM).emit("ended");
-  });
-
-  socket.on("leave", () => {
-    const room = rooms[GAME_ROOM];
-    const index = room.players.findIndex(p => p.id === socket.id);
-    if (index !== -1) {
-      const player = room.players[index];
-      room.players.splice(index, 1);
-      delete room.scores[player.id];
-      delete room.votes[player.id];
-      delete room.disconnectTimers[player.clientId];
-      sendPlayersList();
-    }
-  });
-
-  socket.on("disconnect", () => {
-    const room = rooms[GAME_ROOM];
-    const player = room.players.find(p => p.id === socket.id);
-    if (!player) return;
-
-    room.disconnectTimers[player.clientId] = setTimeout(() => {
-      room.players = room.players.filter(p => p.id !== socket.id);
-      delete room.scores[socket.id];
-      delete room.votes[socket.id];
-      delete room.disconnectTimers[player.clientId];
-      sendPlayersList();
-    }, 5 * 60 * 1000); // 5 minut
-  });
-});
-
-server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+export default App;
