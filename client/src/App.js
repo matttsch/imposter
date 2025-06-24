@@ -4,8 +4,8 @@ import "./App.css";
 
 function App() {
   const [step, setStep] = useState("code");
-  const [code, setCode] = useState("");
-  const [name, setName] = useState("");
+  const [code, setCode] = useState(localStorage.getItem("code") || "");
+  const [name, setName] = useState(localStorage.getItem("name") || "");
   const [players, setPlayers] = useState([]);
   const [word, setWord] = useState(null);
   const [started, setStarted] = useState(false);
@@ -14,32 +14,30 @@ function App() {
   const [voted, setVoted] = useState(false);
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
-  const [remainingWords, setRemainingWords] = useState(null);
+  const [remaining, setRemaining] = useState(null);
 
   const socketRef = useRef(null);
 
   useEffect(() => {
-    const socket = io("https://imposter-014f.onrender.com", {
+    socketRef.current = io("https://imposter-014f.onrender.com", {
       autoConnect: false,
     });
 
-    socketRef.current = socket;
+    const socket = socketRef.current;
 
     socket.on("players", setPlayers);
     socket.on("round", ({ word, remaining }) => {
       setWord(word);
       setVoted(false);
       setResult(null);
-      if (remaining !== undefined) {
-        setRemainingWords(remaining);
-      }
+      setRemaining(remaining);
     });
-
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
+
     socket.on("joined", (data) => {
       setStep("game");
-      if (data?.currentWord) {
+      if (data.currentWord) {
         setWord(data.currentWord);
       }
     });
@@ -53,18 +51,6 @@ function App() {
     socket.on("result", setResult);
 
     socket.connect();
-
-    // Po połączeniu sprawdź dane z localStorage i dołącz
-    socket.on("connect", () => {
-      const savedCode = localStorage.getItem("accessCode");
-      const savedName = localStorage.getItem("playerName");
-      if (savedCode && savedName) {
-        setCode(savedCode);
-        setName(savedName);
-        socket.emit("join", { code: savedCode, name: savedName });
-      }
-    });
-
     return () => socket.disconnect();
   }, []);
 
@@ -75,8 +61,8 @@ function App() {
 
   const joinRoom = () => {
     setError(null);
-    localStorage.setItem("accessCode", code);
-    localStorage.setItem("playerName", name);
+    localStorage.setItem("code", code);
+    localStorage.setItem("name", name);
     socketRef.current.emit("join", { code, name });
   };
 
@@ -101,8 +87,6 @@ function App() {
 
   const leaveGame = () => {
     socketRef.current.emit("leave");
-    localStorage.removeItem("accessCode");
-    localStorage.removeItem("playerName");
     window.location.reload();
   };
 
@@ -193,12 +177,11 @@ function App() {
             </div>
           )}
 
+          <div style={{ textAlign: "right", fontSize: "0.8rem", marginTop: "1rem", opacity: 0.6 }}>
+            {remaining !== null && `Pozostało słów: ${remaining}`}
+          </div>
+
           <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
-          {remainingWords !== null && (
-            <div style={{ fontSize: "0.8rem", marginTop: "1rem", textAlign: "right", opacity: 0.6 }}>
-              Pozostało słów: {remainingWords}
-            </div>
-          )}
         </div>
       )}
     </div>
