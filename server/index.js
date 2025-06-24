@@ -1,4 +1,3 @@
-// server/index.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -17,6 +16,8 @@ const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "Kebsiary14";
 const GAME_ROOM = "main-room";
 
+let nouns = [...new Set(fs.readFileSync("polish_nouns.txt", "utf-8").split("\n").map(w => w.trim()).filter(Boolean))];
+
 const rooms = {
   [GAME_ROOM]: {
     players: [],
@@ -30,55 +31,46 @@ const rooms = {
   }
 };
 
-function deduplicateAndSave(filename) {
-  const words = fs.readFileSync(filename, "utf-8").split("\n").map(w => w.trim()).filter(Boolean);
-  const unique = [...new Set(words)];
-  fs.writeFileSync(filename, unique.join("\n"), "utf-8");
-  return unique;
-}
-
-deduplicateAndSave("polish_nouns_backup.txt");
-let nouns = deduplicateAndSave("polish_nouns.txt");
-
-function reloadNounsIfEmpty() {
-  if (nouns.length === 0) {
-    nouns = deduplicateAndSave("polish_nouns_backup.txt");
-    fs.writeFileSync("polish_nouns.txt", nouns.join("\n"), "utf-8");
-    console.log("Lista słów została zresetowana.");
-  }
-}
-function removeUsedWord(word) {
-  nouns = nouns.filter(w => w.trim().toLowerCase() !== word.trim().toLowerCase());
-  fs.writeFileSync("polish_nouns.txt", nouns.join("\n"), "utf-8");
-}
-
-let roundInProgress = false;
-
 io.on("connection", (socket) => {
   let currentName = null;
 
   socket.on("join", ({ code, name }) => {
+    const room = rooms[GAME_ROOM];
+
     if (code !== ACCESS_CODE) {
       socket.emit("error", { message: "Nieprawidłowy kod dostępu." });
       return;
     }
 
-    const room = rooms[GAME_ROOM];
-    if (room.players.some(p => p.name === name)) {
-      socket.emit("error", { message: "Imię jest już zajęte." });
+    if (room.players.find(p => p.name === name)) {
+      socket.emit("error", { message: "Gracz o tym imieniu już istnieje." });
       return;
     }
 
+    const player = { id: socket.id, name, canVote: true };
     currentName = name;
-    socket.join(GAME_ROOM);
-    const canVote = !room.started;
-    room.players.push({ id: socket.id, name, canVote });
-    room.scores[socket.id] = room.scores[socket.id] || 0;
-    io.to(GAME_ROOM).emit("players", room.players);
-    socket.emit("joined");
 
-    if (room.started && room.currentWord) {
-      socket.emit("round", { word: room.currentWord, remaining: nouns.length });
+    if (room.started) {
+      player.canVote = false;
+    }
+
+    room.players.push(player);
+    room.scores[socket.id] = room.scores[socket.id] || 0;
+
+    socket.join(GAME_ROOM);
+    socket.emit("joined");
+    io.to(GAME_ROOM).emit("players", room.players);
+
+    if (room.started) {
+      socket.emit("started");
+
+      if (room.currentWord) {
+        const isImposter = false;
+        socket.emit("round", {
+          word: isImposter ? "IMPOSTER" : room.currentWord,
+          remaining: nouns.length
+        });
+      }
     }
   });
 
@@ -88,42 +80,34 @@ io.on("connection", (socket) => {
       socket.emit("error", { message: "Gra już została rozpoczęta." });
       return;
     }
+
     room.started = true;
     io.to(GAME_ROOM).emit("started");
     sendNewRound();
   });
 
   function sendNewRound() {
-    if (roundInProgress) return;
-    roundInProgress = true;
-
     const room = rooms[GAME_ROOM];
     const players = room.players;
 
-    reloadNounsIfEmpty();
-    const word = nouns[Math.floor(Math.random() * nouns.length)].trim();
-    room.currentWord = word;
+    const word = nouns[Math.floor(Math.random() * nouns.length)];
+    nouns = nouns.filter(w => w !== word); // usuń użyte słowo
 
     const imposterIndex = Math.floor(Math.random() * players.length);
     room.imposterIndex = imposterIndex;
+    room.currentWord = word;
     room.votes = {};
     room.voteHistory = [];
     room.lastResult = null;
 
-    players.forEach((p, i) => {
+    players.forEach((player, i) => {
       const isImposter = i === imposterIndex;
-      p.canVote = true;
-      io.to(p.id).emit("round", {
+      player.canVote = true; // reset uprawnień do głosowania
+      io.to(player.id).emit("round", {
         word: isImposter ? "IMPOSTER" : word,
-        remaining: nouns.length - 1
+        remaining: nouns.length
       });
     });
-
-    removeUsedWord(word);
-
-    setTimeout(() => {
-      roundInProgress = false;
-    }, 1000);
   }
 
   socket.on("vote", (votedId) => {
@@ -135,10 +119,12 @@ io.on("connection", (socket) => {
     room.votes[socket.id] = votedId;
     room.voteHistory.push({ from: socket.id, to: votedId });
 
-    const totalVotes = Object.keys(room.votes).length;
-    const eligibleVoters = room.players.filter(p => p.canVote).length;
+    voter.canVote = false;
 
-    if (totalVotes === eligibleVoters) {
+    const totalEligibleVoters = room.players.filter(p => p.canVote !== false).length;
+    const totalVotes = Object.keys(room.votes).length;
+
+    if (totalVotes === totalEligibleVoters) {
       const voteCounts = {};
       Object.values(room.votes).forEach((id) => {
         voteCounts[id] = (voteCounts[id] || 0) + 1;
@@ -177,7 +163,9 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("next", () => sendNewRound());
+  socket.on("next", () => {
+    sendNewRound();
+  });
 
   socket.on("end", () => {
     rooms[GAME_ROOM] = {
@@ -196,17 +184,25 @@ io.on("connection", (socket) => {
   socket.on("kick", (id) => {
     const room = rooms[GAME_ROOM];
     room.players = room.players.filter(p => p.id !== id);
-    delete room.scores[id];
     delete room.votes[id];
+    delete room.scores[id];
     io.to(id).emit("ended");
+    io.to(GAME_ROOM).emit("players", room.players);
+  });
+
+  socket.on("leave", () => {
+    const room = rooms[GAME_ROOM];
+    room.players = room.players.filter(p => p.id !== socket.id);
+    delete room.votes[socket.id];
+    delete room.scores[socket.id];
     io.to(GAME_ROOM).emit("players", room.players);
   });
 
   socket.on("disconnect", () => {
     const room = rooms[GAME_ROOM];
     room.players = room.players.filter(p => p.id !== socket.id);
-    delete room.scores[socket.id];
     delete room.votes[socket.id];
+    delete room.scores[socket.id];
     io.to(GAME_ROOM).emit("players", room.players);
   });
 });
