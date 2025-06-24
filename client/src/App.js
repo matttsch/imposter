@@ -14,32 +14,34 @@ function App() {
   const [voted, setVoted] = useState(false);
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
-  const [remainingWords, setRemainingWords] = useState(null);
 
   const socketRef = useRef(null);
 
   useEffect(() => {
     socketRef.current = io("https://imposter-014f.onrender.com", {
-      autoConnect: false
+      autoConnect: false,
     });
 
     const socket = socketRef.current;
 
     socket.on("players", setPlayers);
-    socket.on("round", ({ word, remaining }) => {
+    socket.on("round", ({ word }) => {
       setWord(word);
       setVoted(false);
       setResult(null);
-      setRemainingWords(remaining);
     });
 
     socket.on("started", () => setStarted(true));
-
     socket.on("ended", () => window.location.reload());
 
     socket.on("joined", ({ currentWord }) => {
-      setStep("game");
-      if (currentWord) setWord(currentWord);
+      if (currentWord) {
+        setStarted(true);
+        setWord(currentWord);
+        setStep("game");
+      } else {
+        setStep("game");
+      }
     });
 
     socket.on("error", (err) => {
@@ -92,8 +94,7 @@ function App() {
     socketRef.current.emit("kick", id);
   };
 
-  const toggleTheme = () =>
-    setTheme(theme === "dark" ? "light" : "dark");
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
 
   return (
@@ -101,10 +102,7 @@ function App() {
       <h1 className="logo">
         IMPOSTER <span>by @matttsch</span>
       </h1>
-      <button
-        className="theme-toggle"
-        onClick={toggleTheme}
-      >
+      <button className="theme-toggle" onClick={toggleTheme}>
         {themeLabel}
       </button>
 
@@ -146,17 +144,14 @@ function App() {
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started &&
-                      !voted &&
-                      !result &&
-                      p.id !== socketRef.current.id && (
-                        <button
-                          className="vote-btn"
-                          onClick={() => voteImposter(p.id)}
-                        >
-                          Głosuj
-                        </button>
-                      )}
+                    {started && !voted && !result && p.id !== socketRef.current.id && (
+                      <button
+                        className="vote-btn"
+                        onClick={() => voteImposter(p.id)}
+                      >
+                        Głosuj
+                      </button>
+                    )}
                     {voted &&
                       result?.voteHistory.some(
                         (v) => v.from === name && v.to === p.name
@@ -179,14 +174,18 @@ function App() {
             <div className="round-box">
               <h2 className="word-display">{word}</h2>
 
-              {result ? (
+              {result && (
                 <div className="result-box">
-                  <h3>
-                    Gracze wytypowali na IMPOSTERA:{" "}
-                    {Array.isArray(result.votedOut)
-                      ? result.votedOut.join(", ")
-                      : result.votedOut}
-                  </h3>
+                  {Array.isArray(result.votedOut) ? (
+                    <h3>
+                      Gracze wytypowali na IMPOSTERA:{" "}
+                      {result.votedOut.join(", ")}
+                    </h3>
+                  ) : (
+                    <h3>
+                      Gracze wytypowali na IMPOSTERA: {result.votedOut}
+                    </h3>
+                  )}
                   <p>
                     Rzeczywisty imposter:{" "}
                     <strong>{result.imposterName}</strong>
@@ -200,16 +199,11 @@ function App() {
                     </thead>
                     <tbody>
                       {result.voteHistory.map((v, idx) => {
-                        const correct = Array.isArray(
-                          result.imposterName
-                        )
+                        const correct = Array.isArray(result.imposterName)
                           ? result.imposterName.includes(v.to)
                           : v.to === result.imposterName;
                         return (
-                          <tr
-                            key={idx}
-                            className={correct ? "highlight" : ""}
-                          >
+                          <tr key={idx} className={correct ? "highlight" : ""}>
                             <td>{v.from}</td>
                             <td>{v.to}</td>
                           </tr>
@@ -221,7 +215,9 @@ function App() {
                     Kolejna runda
                   </button>
                 </div>
-              ) : (
+              )}
+
+              {!result && (
                 <p>
                   {!voted
                     ? "Oddaj swój głos"
@@ -238,12 +234,6 @@ function App() {
           <button className="leave-btn" onClick={leaveGame}>
             Opuść grę
           </button>
-
-          {remainingWords !== null && (
-            <p style={{ textAlign: "right", fontSize: "0.8rem", marginTop: "1rem" }}>
-              Pozostało słów: {remainingWords}
-            </p>
-          )}
         </div>
       )}
     </div>
