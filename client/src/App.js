@@ -1,3 +1,4 @@
+// client/src/App.js
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "./App.css";
@@ -14,7 +15,7 @@ function App() {
   const [voted, setVoted] = useState(false);
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
-  const [remaining, setRemaining] = useState(null);
+  const [remainingWords, setRemainingWords] = useState(null);
   const [justJoined, setJustJoined] = useState(false);
 
   const socketRef = useRef(null);
@@ -27,12 +28,12 @@ function App() {
     const socket = socketRef.current;
 
     socket.on("players", setPlayers);
+
     socket.on("round", ({ word, remaining }) => {
       setWord(word);
       setVoted(false);
       setResult(null);
-      setRemaining(remaining);
-      setJustJoined(false);
+      setRemainingWords(remaining);
     });
 
     socket.on("started", () => setStarted(true));
@@ -40,13 +41,12 @@ function App() {
     socket.on("ended", () => window.location.reload());
 
     socket.on("joined", (data) => {
-      if (data.currentWord) {
+      setStep("game");
+      if (data?.currentWord) {
         setWord(data.currentWord);
-        setStarted(true);
-        setStep("game");
         setJustJoined(true);
       } else {
-        setStep("game");
+        setJustJoined(false);
       }
     });
 
@@ -56,6 +56,7 @@ function App() {
     });
 
     socket.on("scores", setScores);
+
     socket.on("result", setResult);
 
     socket.connect();
@@ -86,6 +87,7 @@ function App() {
 
   const nextRound = () => {
     setResult(null);
+    setJustJoined(false);
     socketRef.current.emit("next");
   };
 
@@ -114,9 +116,21 @@ function App() {
 
       {step === "code" && (
         <div className="login-box">
-          <input className="input" placeholder="Kod dostępu" value={code} onChange={(e) => setCode(e.target.value)} />
-          <input className="input" placeholder="Imię" value={name} onChange={(e) => setName(e.target.value)} />
-          <button className="btn" onClick={joinRoom}>Dołącz</button>
+          <input
+            className="input"
+            placeholder="Kod dostępu"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <input
+            className="input"
+            placeholder="Imię"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button className="btn" onClick={joinRoom}>
+            Dołącz
+          </button>
           {error && <p className="error">{error}</p>}
         </div>
       )}
@@ -129,18 +143,36 @@ function App() {
               {players.map((p) => (
                 <li key={p.id} className="player-row">
                   <div className="player-info">
-                    <span className="remove-btn" onClick={() => removePlayer(p.id)}>❌</span>
+                    <span
+                      className="remove-btn"
+                      onClick={() => removePlayer(p.id)}
+                    >
+                      ❌
+                    </span>
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started && !voted && !result && p.id !== socketRef.current.id && (
-                      !justJoined && !justJoinedPlayer(p.id) && (
-                        <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
-                      )
-                    )}
-                    {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
-                      <em className="voted-note">Zagłosowałeś na {p.name}</em>
-                    )}
+                    {started &&
+                      !voted &&
+                      !result &&
+                      !justJoined &&
+                      p.id !== socketRef.current.id &&
+                      !players.find(j => j.id === p.id && j.justJoined) && (
+                        <button
+                          className="vote-btn"
+                          onClick={() => voteImposter(p.id)}
+                        >
+                          Głosuj
+                        </button>
+                      )}
+                    {voted &&
+                      result?.voteHistory.some(
+                        (v) => v.from === name && v.to === p.name
+                      ) && (
+                        <em className="voted-note">
+                          Zagłosowałeś na {p.name}
+                        </em>
+                      )}
                   </div>
                 </li>
               ))}
@@ -148,32 +180,33 @@ function App() {
           </div>
 
           {!started ? (
-            <button className="btn" onClick={startGame}>Start gry</button>
+            <button className="btn" onClick={startGame}>
+              Start gry
+            </button>
           ) : (
             <div className="round-box">
               <h2 className="word-display">{word}</h2>
 
-              {remaining !== null && (
-                <p style={{ fontSize: "0.8rem", textAlign: "right", marginTop: "-0.5rem" }}>
-                  Pozostało słów: {remaining}
-                </p>
-              )}
-
               {justJoined && !result && (
-                <p style={{ color: "gray", fontSize: "0.9rem", marginTop: "1rem" }}>
-                  Nie możesz głosować w tej rundzie
-                </p>
+                <p className="voted-note">Nie możesz głosować w tej rundzie</p>
               )}
 
               {result && (
                 <div className="result-box">
-                  <h3>
-                    Gracze wytypowali na IMPOSTERA:{" "}
-                    {Array.isArray(result.votedOut)
-                      ? result.votedOut.join(", ")
-                      : result.votedOut}
-                  </h3>
-                  <p>Rzeczywisty imposter: <strong>{result.imposterName}</strong></p>
+                  {Array.isArray(result.votedOut) ? (
+                    <h3>
+                      Gracze wytypowali na IMPOSTERA:{" "}
+                      {result.votedOut.join(", ")}
+                    </h3>
+                  ) : (
+                    <h3>
+                      Gracze wytypowali na IMPOSTERA: {result.votedOut}
+                    </h3>
+                  )}
+                  <p>
+                    Rzeczywisty imposter:{" "}
+                    <strong>{result.imposterName}</strong>
+                  </p>
                   <table className="vote-table">
                     <thead>
                       <tr>
@@ -195,24 +228,33 @@ function App() {
                       })}
                     </tbody>
                   </table>
-                  <button className="btn" onClick={nextRound}>Kolejna runda</button>
+                  <button className="btn" onClick={nextRound}>
+                    Kolejna runda
+                  </button>
                 </div>
               )}
 
-              {!result && !justJoined && <p>{!voted ? "Oddaj swój głos" : "Czekamy na pozostałych graczy..."}</p>}
-              <button className="btn end" onClick={endGame}>Koniec gry</button>
+              {!result && (
+                <p>{!voted ? "Oddaj swój głos" : "Czekamy na pozostałych graczy..."}</p>
+              )}
+
+              <button className="btn end" onClick={endGame}>
+                Koniec gry
+              </button>
+              <button className="leave-btn" onClick={leaveGame}>
+                Opuść grę
+              </button>
+              {remainingWords !== null && (
+                <div style={{ textAlign: "right", fontSize: "0.8rem", marginTop: "1rem" }}>
+                  Pozostało słów: {remainingWords}
+                </div>
+              )}
             </div>
           )}
-
-          <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
         </div>
       )}
     </div>
   );
-}
-
-function justJoinedPlayer(playerId) {
-  return false; // Wersja klienta nie ma listy who just joined — obsługuje to serwer
 }
 
 export default App;
