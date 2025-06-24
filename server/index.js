@@ -27,7 +27,6 @@ const rooms = {
     lastResult: null,
     usedWords: new Set(),
     currentWord: null,
-    justJoined: new Set(),
   }
 };
 
@@ -58,7 +57,6 @@ function sendNewRound() {
   room.votes = {};
   room.voteHistory = [];
   room.lastResult = null;
-  room.justJoined = new Set();
 
   room.imposterIndex = Math.floor(Math.random() * players.length);
   players.forEach((player, i) => {
@@ -88,7 +86,6 @@ io.on("connection", (socket) => {
     socket.join(GAME_ROOM);
     room.players.push({ id: socket.id, name });
     room.scores[socket.id] = room.scores[socket.id] || 0;
-    room.justJoined.add(socket.id);
     sendPlayersList();
 
     if (room.started && room.currentWord) {
@@ -112,19 +109,13 @@ io.on("connection", (socket) => {
   socket.on("vote", (votedId) => {
     const room = rooms[GAME_ROOM];
 
-    // Ograniczenie: jeśli gracz właśnie dołączył — nie głosuje
-    if (room.justJoined.has(socket.id)) return;
-
-    // Nie można głosować na gracza, który dopiero dołączył
-    if (room.justJoined.has(votedId)) return;
-
     room.votes[socket.id] = votedId;
     room.voteHistory.push({ from: socket.id, to: votedId });
 
     const totalVotes = Object.keys(room.votes).length;
-    const eligibleVoters = room.players.filter(p => !room.justJoined.has(p.id)).length;
+    const totalPlayers = room.players.length;
 
-    if (totalVotes === eligibleVoters) {
+    if (totalVotes === totalPlayers) {
       const voteCounts = {};
       Object.values(room.votes).forEach((id) => {
         voteCounts[id] = (voteCounts[id] || 0) + 1;
@@ -178,7 +169,6 @@ io.on("connection", (socket) => {
       lastResult: null,
       usedWords: new Set(),
       currentWord: null,
-      justJoined: new Set()
     };
     io.to(GAME_ROOM).emit("ended");
   });
@@ -188,7 +178,6 @@ io.on("connection", (socket) => {
     room.players = room.players.filter(p => p.id !== id);
     delete room.scores[id];
     delete room.votes[id];
-    room.justJoined.delete(id);
     io.to(id).emit("ended");
     sendPlayersList();
   });
@@ -198,17 +187,14 @@ io.on("connection", (socket) => {
     room.players = room.players.filter(p => p.id !== socket.id);
     delete room.scores[socket.id];
     delete room.votes[socket.id];
-    room.justJoined.delete(socket.id);
     sendPlayersList();
   });
 
-  socket.on("disconnect", (reason) => {
-    if (reason === "transport close") return;
+  socket.on("disconnect", () => {
     const room = rooms[GAME_ROOM];
     room.players = room.players.filter(p => p.id !== socket.id);
     delete room.scores[socket.id];
     delete room.votes[socket.id];
-    room.justJoined.delete(socket.id);
     sendPlayersList();
   });
 });
