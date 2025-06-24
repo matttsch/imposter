@@ -14,8 +14,8 @@ function App() {
   const [voted, setVoted] = useState(false);
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
-  const [justJoined, setJustJoined] = useState(false);
   const [remaining, setRemaining] = useState(null);
+  const [justJoined, setJustJoined] = useState(false);
 
   const socketRef = useRef(null);
 
@@ -29,24 +29,32 @@ function App() {
     socket.on("players", setPlayers);
     socket.on("round", ({ word, remaining }) => {
       setWord(word);
-      setRemaining(remaining);
       setVoted(false);
       setResult(null);
+      setRemaining(remaining);
       setJustJoined(false);
     });
+
     socket.on("started", () => setStarted(true));
+
     socket.on("ended", () => window.location.reload());
-    socket.on("joined", ({ currentWord }) => {
-      setStep("game");
-      if (currentWord) {
-        setWord(currentWord);
+
+    socket.on("joined", (data) => {
+      if (data.currentWord) {
+        setWord(data.currentWord);
+        setStarted(true);
+        setStep("game");
         setJustJoined(true);
+      } else {
+        setStep("game");
       }
     });
+
     socket.on("error", (err) => {
       setError(err.message);
       setStep("code");
     });
+
     socket.on("scores", setScores);
     socket.on("result", setResult);
 
@@ -70,7 +78,7 @@ function App() {
   };
 
   const voteImposter = (id) => {
-    if (!voted) {
+    if (!voted && !justJoined) {
       socketRef.current.emit("vote", id);
       setVoted(true);
     }
@@ -106,21 +114,9 @@ function App() {
 
       {step === "code" && (
         <div className="login-box">
-          <input
-            className="input"
-            placeholder="Kod dostępu"
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-          />
-          <input
-            className="input"
-            placeholder="Imię"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button className="btn" onClick={joinRoom}>
-            Dołącz
-          </button>
+          <input className="input" placeholder="Kod dostępu" value={code} onChange={(e) => setCode(e.target.value)} />
+          <input className="input" placeholder="Imię" value={name} onChange={(e) => setName(e.target.value)} />
+          <button className="btn" onClick={joinRoom}>Dołącz</button>
           {error && <p className="error">{error}</p>}
         </div>
       )}
@@ -133,36 +129,18 @@ function App() {
               {players.map((p) => (
                 <li key={p.id} className="player-row">
                   <div className="player-info">
-                    <span
-                      className="remove-btn"
-                      onClick={() => removePlayer(p.id)}
-                    >
-                      ❌
-                    </span>
+                    <span className="remove-btn" onClick={() => removePlayer(p.id)}>❌</span>
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started &&
-                      !voted &&
-                      !result &&
-                      p.id !== socketRef.current.id &&
-                      !justJoined &&
-                      !players.find((pl) => pl.id === p.id && justJoined) && (
-                        <button
-                          className="vote-btn"
-                          onClick={() => voteImposter(p.id)}
-                        >
-                          Głosuj
-                        </button>
-                      )}
-                    {voted &&
-                      result?.voteHistory.some(
-                        (v) => v.from === name && v.to === p.name
-                      ) && (
-                        <em className="voted-note">
-                          Zagłosowałeś na {p.name}
-                        </em>
-                      )}
+                    {started && !voted && !result && p.id !== socketRef.current.id && (
+                      !justJoined && !justJoinedPlayer(p.id) && (
+                        <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
+                      )
+                    )}
+                    {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
+                      <em className="voted-note">Zagłosowałeś na {p.name}</em>
+                    )}
                   </div>
                 </li>
               ))}
@@ -170,29 +148,32 @@ function App() {
           </div>
 
           {!started ? (
-            <button className="btn" onClick={startGame}>
-              Start gry
-            </button>
+            <button className="btn" onClick={startGame}>Start gry</button>
           ) : (
             <div className="round-box">
               <h2 className="word-display">{word}</h2>
 
+              {remaining !== null && (
+                <p style={{ fontSize: "0.8rem", textAlign: "right", marginTop: "-0.5rem" }}>
+                  Pozostało słów: {remaining}
+                </p>
+              )}
+
+              {justJoined && !result && (
+                <p style={{ color: "gray", fontSize: "0.9rem", marginTop: "1rem" }}>
+                  Nie możesz głosować w tej rundzie
+                </p>
+              )}
+
               {result && (
                 <div className="result-box">
-                  {Array.isArray(result.votedOut) ? (
-                    <h3>
-                      Gracze wytypowali na IMPOSTERA:{" "}
-                      {result.votedOut.join(", ")}
-                    </h3>
-                  ) : (
-                    <h3>
-                      Gracze wytypowali na IMPOSTERA: {result.votedOut}
-                    </h3>
-                  )}
-                  <p>
-                    Rzeczywisty imposter:{" "}
-                    <strong>{result.imposterName}</strong>
-                  </p>
+                  <h3>
+                    Gracze wytypowali na IMPOSTERA:{" "}
+                    {Array.isArray(result.votedOut)
+                      ? result.votedOut.join(", ")
+                      : result.votedOut}
+                  </h3>
+                  <p>Rzeczywisty imposter: <strong>{result.imposterName}</strong></p>
                   <table className="vote-table">
                     <thead>
                       <tr>
@@ -202,10 +183,9 @@ function App() {
                     </thead>
                     <tbody>
                       {result.voteHistory.map((v, idx) => {
-                        const correct =
-                          v.to === result.imposterName ||
-                          (Array.isArray(result.imposterName) &&
-                            result.imposterName.includes(v.to));
+                        const correct = Array.isArray(result.imposterName)
+                          ? result.imposterName.includes(v.to)
+                          : v.to === result.imposterName;
                         return (
                           <tr key={idx} className={correct ? "highlight" : ""}>
                             <td>{v.from}</td>
@@ -215,40 +195,24 @@ function App() {
                       })}
                     </tbody>
                   </table>
-                  <button className="btn" onClick={nextRound}>
-                    Kolejna runda
-                  </button>
+                  <button className="btn" onClick={nextRound}>Kolejna runda</button>
                 </div>
               )}
 
-              {!result && (
-                <p>
-                  {!voted
-                    ? "Oddaj swój głos"
-                    : "Czekamy na pozostałych graczy..."}
-                </p>
-              )}
-
-              <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <button className="btn end" onClick={endGame}>
-                  Koniec gry
-                </button>
-                {remaining !== null && (
-                  <small style={{ alignSelf: "center" }}>
-                    Pozostało słów: {remaining}
-                  </small>
-                )}
-              </div>
+              {!result && !justJoined && <p>{!voted ? "Oddaj swój głos" : "Czekamy na pozostałych graczy..."}</p>}
+              <button className="btn end" onClick={endGame}>Koniec gry</button>
             </div>
           )}
 
-          <button className="leave-btn" onClick={leaveGame}>
-            Opuść grę
-          </button>
+          <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
         </div>
       )}
     </div>
   );
+}
+
+function justJoinedPlayer(playerId) {
+  return false; // Wersja klienta nie ma listy who just joined — obsługuje to serwer
 }
 
 export default App;
