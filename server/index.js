@@ -30,7 +30,6 @@ const rooms = {
   }
 };
 
-// Usuwanie duplikatów przy starcie
 function deduplicateAndSave(filename) {
   const words = fs.readFileSync(filename, "utf-8").split("\n").map(w => w.trim()).filter(Boolean);
   const unique = [...new Set(words)];
@@ -78,7 +77,6 @@ io.on("connection", (socket) => {
     io.to(GAME_ROOM).emit("players", room.players);
     socket.emit("joined");
 
-    // Jeśli gra już trwa, daj mu tylko słowo
     if (room.started && room.currentWord) {
       socket.emit("round", { word: room.currentWord, remaining: nouns.length });
     }
@@ -112,7 +110,6 @@ io.on("connection", (socket) => {
     room.voteHistory = [];
     room.lastResult = null;
 
-    // Reset głosowania
     players.forEach((p, i) => {
       const isImposter = i === imposterIndex;
       p.canVote = true;
