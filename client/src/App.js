@@ -32,6 +32,7 @@ function App() {
       setVoted(false);
       setResult(null);
       setRemainingWords(remaining);
+      setStep("game");
     });
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
@@ -75,8 +76,15 @@ function App() {
   };
 
   const endGame = () => socketRef.current.emit("end");
-  const leaveGame = () => window.location.reload();
-  const kickPlayer = (id) => socketRef.current.emit("kick", id);
+
+  const leaveGame = () => {
+    socketRef.current.emit("leave");
+    window.location.reload();
+  };
+
+  const removePlayer = (id) => {
+    socketRef.current.emit("kick", id);
+  };
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
@@ -103,11 +111,11 @@ function App() {
               {players.map((p) => (
                 <li key={p.id} className="player-row">
                   <div className="player-info">
-                    <span className="remove-btn" onClick={() => kickPlayer(p.id)}>❌</span>
+                    <span className="remove-btn" onClick={() => removePlayer(p.id)}>❌</span>
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started && !voted && !result && p.id !== socketRef.current.id && (
+                    {started && !voted && !result && p.id !== socketRef.current.id && p.canVote && (
                       <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
                     )}
                     {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
@@ -158,15 +166,15 @@ function App() {
               {!result && <p>{!voted ? "Oddaj swój głos" : "Czekamy na pozostałych graczy..."}</p>}
 
               <button className="btn end" onClick={endGame}>Koniec gry</button>
-              <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
+              {remainingWords !== null && (
+                <p style={{ fontSize: "0.8rem", textAlign: "right", marginTop: "1rem" }}>
+                  Pozostało słów: {remainingWords}
+                </p>
+              )}
             </div>
           )}
 
-          {remainingWords !== null && (
-            <p style={{ fontSize: "0.8rem", textAlign: "right", marginTop: "1rem", opacity: 0.6 }}>
-              Pozostało słów: {remainingWords}
-            </p>
-          )}
+          <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
         </div>
       )}
     </div>
