@@ -8,7 +8,9 @@ const app = express();
 app.use(cors());
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+const io = new Server(server, {
+  cors: { origin: "*" }
+});
 
 const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "Kebsiary14";
@@ -16,7 +18,7 @@ const GAME_ROOM = "main-room";
 
 const rooms = {
   [GAME_ROOM]: {
-    players: [], // { id, name, word }
+    players: [],
     started: false,
     votes: {},
     scores: {},
@@ -25,19 +27,19 @@ const rooms = {
     lastResult: null,
     usedWords: new Set(),
     currentWord: null,
-    reconnectMap: {}, // name -> word
+    imposter: null
   }
 };
 
 let nouns = Array.from(new Set(
   fs.readFileSync("polish_nouns.txt", "utf-8")
     .split("\n")
-    .map(w => w.trim())
+    .map(word => word.trim())
     .filter(Boolean)
 ));
 
 function sendPlayersList() {
-  io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players.map(p => ({ id: p.id, name: p.name })));
+  io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
 }
 
 function sendNewRound() {
@@ -58,25 +60,22 @@ function sendNewRound() {
   room.lastResult = null;
 
   room.imposterIndex = Math.floor(Math.random() * players.length);
+  const imposter = players[room.imposterIndex];
+  room.imposter = imposter;
 
   players.forEach((player, i) => {
-    const isImposter = i === room.imposterIndex;
-    const assignedWord = isImposter ? "IMPOSTER" : word;
-    player.word = assignedWord;
-    room.reconnectMap[player.name] = assignedWord;
-
+    const isImposter = player.name === imposter.name;
     io.to(player.id).emit("round", {
-      word: assignedWord,
+      word: isImposter ? "IMPOSTER" : word,
       remaining: nouns.length - room.usedWords.size
     });
   });
 }
 
 io.on("connection", (socket) => {
-  let currentName = null;
-
   socket.on("join", ({ code, name }) => {
     const room = rooms[GAME_ROOM];
+
     if (code !== ACCESS_CODE) {
       socket.emit("error", { message: "Nieprawidłowy kod dostępu." });
       return;
@@ -84,30 +83,21 @@ io.on("connection", (socket) => {
 
     const existing = room.players.find(p => p.name === name);
     if (existing) {
-      // reconnect logic
-      existing.id = socket.id;
-      currentName = name;
-      socket.join(GAME_ROOM);
-      sendPlayersList();
-
-      const currentWord = room.reconnectMap[name];
-      if (room.started && currentWord) {
-        socket.emit("joined", { currentWord, remaining: nouns.length - room.usedWords.size });
-      } else {
-        socket.emit("joined", {});
-      }
-      return;
+      existing.id = socket.id; // Reconnect: update socket ID
+    } else {
+      room.players.push({ id: socket.id, name });
+      room.scores[socket.id] = 0;
     }
 
-    // new player
-    currentName = name;
     socket.join(GAME_ROOM);
-    room.players.push({ id: socket.id, name, word: null });
-    room.scores[socket.id] = room.scores[socket.id] || 0;
     sendPlayersList();
 
     if (room.started && room.currentWord) {
-      socket.emit("joined", { currentWord: room.currentWord, remaining: nouns.length - room.usedWords.size });
+      const isImposter = room.imposter && room.imposter.name === name;
+      socket.emit("joined", {
+        currentWord: isImposter ? "IMPOSTER" : room.currentWord,
+        remaining: nouns.length - room.usedWords.size
+      });
     } else {
       socket.emit("joined", {});
     }
@@ -144,7 +134,7 @@ io.on("connection", (socket) => {
         .map(([id]) => id);
 
       const votedOutNames = topVotedIds.map(id => room.players.find(p => p.id === id)?.name);
-      const imposter = room.players[room.imposterIndex];
+      const imposter = room.imposter;
 
       if (topVotedIds.includes(imposter.id)) {
         for (const [voterId, votedId] of Object.entries(room.votes)) {
@@ -186,16 +176,14 @@ io.on("connection", (socket) => {
       lastResult: null,
       usedWords: new Set(),
       currentWord: null,
-      reconnectMap: {}
+      imposter: null
     };
     io.to(GAME_ROOM).emit("ended");
   });
 
   socket.on("kick", (id) => {
     const room = rooms[GAME_ROOM];
-    const kicked = room.players.find(p => p.id === id);
     room.players = room.players.filter(p => p.id !== id);
-    if (kicked) delete room.reconnectMap[kicked.name];
     delete room.scores[id];
     delete room.votes[id];
     io.to(id).emit("ended");
@@ -204,17 +192,17 @@ io.on("connection", (socket) => {
 
   socket.on("leave", () => {
     const room = rooms[GAME_ROOM];
-    const leaver = room.players.find(p => p.id === socket.id);
     room.players = room.players.filter(p => p.id !== socket.id);
-    if (leaver) delete room.reconnectMap[leaver.name];
     delete room.scores[socket.id];
     delete room.votes[socket.id];
     sendPlayersList();
   });
 
   socket.on("disconnect", () => {
-    // keep reconnectMap for reconnects
+    const room = rooms[GAME_ROOM];
+    // Sesja utrzymywana – nie usuwamy gracza, tylko zostawiamy jego dane do reconnectu
+    sendPlayersList();
   });
 });
 
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
