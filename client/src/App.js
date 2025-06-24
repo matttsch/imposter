@@ -1,4 +1,3 @@
-// client/src/App.js
 import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "./App.css";
@@ -15,7 +14,7 @@ function App() {
   const [voted, setVoted] = useState(false);
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
-  const [remainingWords, setRemainingWords] = useState(null);
+  const [remaining, setRemaining] = useState(null);
 
   const socketRef = useRef(null);
 
@@ -26,18 +25,24 @@ function App() {
 
     const socket = socketRef.current;
 
-    socket.on("players", setPlayers);
+    socket.on("players", (players) => setPlayers(players));
     socket.on("round", ({ word, remaining }) => {
       setWord(word);
-      setRemainingWords(remaining);
+      setRemaining(remaining);
       setVoted(false);
       setResult(null);
     });
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
-    socket.on("joined", ({ currentWord }) => {
-      setStep("game");
-      if (currentWord) setWord(currentWord);
+    socket.on("joined", ({ currentWord, remaining }) => {
+      if (currentWord) {
+        setWord(currentWord);
+        setStarted(true);
+        setStep("game");
+        setRemaining(remaining);
+      } else {
+        setStep("game");
+      }
     });
     socket.on("error", (err) => {
       setError(err.message);
@@ -172,13 +177,13 @@ function App() {
           )}
 
           <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
-
-          {remainingWords !== null && (
-            <div style={{ textAlign: "right", fontSize: "0.85rem", marginTop: "1rem", color: "gray" }}>
-              Pozostało słów: {remainingWords}
-            </div>
-          )}
         </div>
+      )}
+
+      {remaining !== null && (
+        <p style={{ fontSize: "0.8rem", textAlign: "right", paddingRight: "1rem", marginTop: "-1rem" }}>
+          Pozostało słów: {remaining}
+        </p>
       )}
     </div>
   );
