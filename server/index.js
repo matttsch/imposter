@@ -27,6 +27,7 @@ const rooms = {
     lastResult: null,
     usedWords: new Set(),
     currentWord: null,
+    disconnectTimers: {}
   }
 };
 
@@ -43,8 +44,6 @@ function sendPlayersList() {
 
 function sendNewRound() {
   const room = rooms[GAME_ROOM];
-  const players = room.players;
-
   const availableWords = nouns.filter(w => !room.usedWords.has(w));
   if (availableWords.length === 0) {
     io.to(GAME_ROOM).emit("error", { message: "Skończyły się słowa!" });
@@ -57,9 +56,9 @@ function sendNewRound() {
   room.votes = {};
   room.voteHistory = [];
   room.lastResult = null;
-  room.imposterIndex = Math.floor(Math.random() * players.length);
 
-  players.forEach((player, i) => {
+  room.imposterIndex = Math.floor(Math.random() * room.players.length);
+  room.players.forEach((player, i) => {
     const isImposter = i === room.imposterIndex;
     io.to(player.id).emit("round", {
       word: isImposter ? "IMPOSTER" : word,
@@ -69,32 +68,38 @@ function sendNewRound() {
 }
 
 io.on("connection", (socket) => {
-  let currentName = null;
-
-  socket.on("join", ({ code, name }) => {
+  socket.on("join", ({ code, name, clientId }) => {
     const room = rooms[GAME_ROOM];
     if (code !== ACCESS_CODE) {
       socket.emit("error", { message: "Nieprawidłowy kod dostępu." });
       return;
     }
+
+    const existing = room.players.find(p => p.clientId === clientId);
+    if (existing) {
+      // reconnect
+      clearTimeout(room.disconnectTimers[clientId]);
+      existing.id = socket.id;
+      socket.join(GAME_ROOM);
+      sendPlayersList();
+      socket.emit("joined", room.started && room.currentWord ? { currentWord: room.currentWord } : {});
+      if (room.started) socket.emit("started");
+      return;
+    }
+
     if (room.players.find(p => p.name === name)) {
       socket.emit("error", { message: "Imię jest już zajęte." });
       return;
     }
 
-    currentName = name;
-    socket.join(GAME_ROOM);
-    room.players.push({ id: socket.id, name });
+    const player = { id: socket.id, name, clientId };
+    room.players.push(player);
     room.scores[socket.id] = room.scores[socket.id] || 0;
-    sendPlayersList();
 
-    // Jeśli gra już trwa, dołączającemu graczowi pokaż aktualne hasło (nigdy IMPOSTER)
-    if (room.started && room.currentWord) {
-      socket.emit("joined", { currentWord: room.currentWord });
-      socket.emit("started");
-    } else {
-      socket.emit("joined", {});
-    }
+    socket.join(GAME_ROOM);
+    sendPlayersList();
+    socket.emit("joined", room.started && room.currentWord ? { currentWord: room.currentWord } : {});
+    if (room.started) socket.emit("started");
   });
 
   socket.on("start", () => {
@@ -170,33 +175,36 @@ io.on("connection", (socket) => {
       lastResult: null,
       usedWords: new Set(),
       currentWord: null,
+      disconnectTimers: {}
     };
     io.to(GAME_ROOM).emit("ended");
   });
 
-  socket.on("kick", (id) => {
-    const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== id);
-    delete room.scores[id];
-    delete room.votes[id];
-    io.to(id).emit("ended");
-    sendPlayersList();
-  });
-
   socket.on("leave", () => {
     const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== socket.id);
-    delete room.scores[socket.id];
-    delete room.votes[socket.id];
-    sendPlayersList();
+    const index = room.players.findIndex(p => p.id === socket.id);
+    if (index !== -1) {
+      const player = room.players[index];
+      room.players.splice(index, 1);
+      delete room.scores[player.id];
+      delete room.votes[player.id];
+      delete room.disconnectTimers[player.clientId];
+      sendPlayersList();
+    }
   });
 
   socket.on("disconnect", () => {
     const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== socket.id);
-    delete room.scores[socket.id];
-    delete room.votes[socket.id];
-    sendPlayersList();
+    const player = room.players.find(p => p.id === socket.id);
+    if (!player) return;
+
+    room.disconnectTimers[player.clientId] = setTimeout(() => {
+      room.players = room.players.filter(p => p.id !== socket.id);
+      delete room.scores[socket.id];
+      delete room.votes[socket.id];
+      delete room.disconnectTimers[player.clientId];
+      sendPlayersList();
+    }, 5 * 60 * 1000); // 5 minut
   });
 });
 
