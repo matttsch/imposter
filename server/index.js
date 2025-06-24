@@ -15,7 +15,6 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3001;
 const ACCESS_CODE = "Kebsiary14";
 const GAME_ROOM = "main-room";
-const SESSION_TIMEOUT_MS = 5 * 60 * 1000;
 
 const rooms = {
   [GAME_ROOM]: {
@@ -23,20 +22,20 @@ const rooms = {
     started: false,
     votes: {},
     scores: {},
-    imposterIndex: null,
-    imposterId: null,
     voteHistory: [],
     lastResult: null,
     usedWords: new Set(),
     currentWord: null,
-    disconnected: {},
+    wordByName: {},      // NEW: słowo przypisane do imienia
+    imposterName: null,  // NEW: impostor wg imienia
+    sessionMap: {},      // NEW: reconnect (name => socket.id)
   }
 };
 
 let nouns = Array.from(new Set(
   fs.readFileSync("polish_nouns.txt", "utf-8")
     .split("\n")
-    .map(word => word.trim())
+    .map(w => w.trim())
     .filter(Boolean)
 ));
 
@@ -58,18 +57,20 @@ function sendNewRound() {
   const word = availableWords[Math.floor(Math.random() * availableWords.length)];
   room.usedWords.add(word);
   room.currentWord = word;
+
+  // NEW
+  room.wordByName = {};
+  room.imposterName = players[Math.floor(Math.random() * players.length)].name;
   room.votes = {};
   room.voteHistory = [];
   room.lastResult = null;
 
-  const imposterIndex = Math.floor(Math.random() * players.length);
-  room.imposterIndex = imposterIndex;
-  room.imposterId = players[imposterIndex].id;
+  players.forEach((player) => {
+    const wordToSend = player.name === room.imposterName ? "IMPOSTER" : word;
+    room.wordByName[player.name] = wordToSend;
 
-  players.forEach((player, i) => {
-    const isImposter = player.id === room.imposterId;
     io.to(player.id).emit("round", {
-      word: isImposter ? "IMPOSTER" : word,
+      word: wordToSend,
       remaining: nouns.length - room.usedWords.size
     });
   });
@@ -85,50 +86,22 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Reconnect
-    if (room.disconnected[name]) {
-      clearTimeout(room.disconnected[name].timeout);
-      const existing = room.disconnected[name];
+    const existing = room.players.find(p => p.name === name);
+    if (existing) {
+      // reconnect
+      existing.id = socket.id;
+    } else {
       room.players.push({ id: socket.id, name });
-      room.scores[socket.id] = room.scores[existing.oldId] || 0;
-      delete room.scores[existing.oldId];
-      delete room.disconnected[name];
-      currentName = name;
-      socket.join(GAME_ROOM);
-      sendPlayersList();
-
-      if (room.started && room.currentWord) {
-        const isImposter = socket.id === room.imposterId;
-        socket.emit("joined", {
-          currentWord: isImposter ? "IMPOSTER" : room.currentWord,
-          remaining: nouns.length - room.usedWords.size
-        });
-        socket.emit("started");
-      } else {
-        socket.emit("joined", {});
-      }
-      return;
-    }
-
-    // New user
-    if (room.players.find(p => p.name === name)) {
-      socket.emit("error", { message: "Imię jest już zajęte." });
-      return;
+      room.scores[socket.id] = 0;
     }
 
     currentName = name;
+    room.sessionMap[name] = socket.id;
     socket.join(GAME_ROOM);
-    room.players.push({ id: socket.id, name });
-    room.scores[socket.id] = room.scores[socket.id] || 0;
     sendPlayersList();
 
-    if (room.started && room.currentWord) {
-      const isImposter = socket.id === room.imposterId;
-      socket.emit("joined", {
-        currentWord: isImposter ? "IMPOSTER" : room.currentWord,
-        remaining: nouns.length - room.usedWords.size
-      });
-      socket.emit("started");
+    if (room.started && room.currentWord && name in room.wordByName) {
+      socket.emit("joined", { currentWord: room.wordByName[name] });
     } else {
       socket.emit("joined", {});
     }
@@ -165,24 +138,24 @@ io.on("connection", (socket) => {
         .map(([id]) => id);
 
       const votedOutNames = topVotedIds.map(id => room.players.find(p => p.id === id)?.name);
-      const imposter = room.players.find(p => p.id === room.imposterId);
+      const imposter = room.players.find(p => p.name === room.imposterName);
 
-      if (topVotedIds.includes(imposter.id)) {
+      if (imposter && topVotedIds.includes(imposter.id)) {
         for (const [voterId, votedId] of Object.entries(room.votes)) {
           if (votedId === imposter.id) {
             room.scores[voterId]++;
           }
         }
-      } else {
+      } else if (imposter) {
         room.scores[imposter.id]++;
       }
 
       room.lastResult = {
         votedOut: votedOutNames.length === 1 ? votedOutNames[0] : votedOutNames,
-        imposterName: imposter.name,
+        imposterName: imposter?.name,
         voteHistory: room.voteHistory.map(({ from, to }) => {
-          const fromName = room.players.find(p => p.id === from)?.name || from;
-          const toName = room.players.find(p => p.id === to)?.name || to;
+          const fromName = room.players.find(p => p.id === from)?.name;
+          const toName = room.players.find(p => p.id === to)?.name;
           return { from: fromName, to: toName };
         })
       };
@@ -192,9 +165,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  socket.on("next", () => {
-    sendNewRound();
-  });
+  socket.on("next", () => sendNewRound());
 
   socket.on("end", () => {
     rooms[GAME_ROOM] = {
@@ -202,57 +173,36 @@ io.on("connection", (socket) => {
       started: false,
       votes: {},
       scores: {},
-      imposterIndex: null,
-      imposterId: null,
       voteHistory: [],
       lastResult: null,
       usedWords: new Set(),
       currentWord: null,
-      disconnected: {},
+      wordByName: {},
+      imposterName: null,
+      sessionMap: {},
     };
     io.to(GAME_ROOM).emit("ended");
   });
 
   socket.on("kick", (id) => {
     const room = rooms[GAME_ROOM];
-    const kicked = room.players.find(p => p.id === id);
-    if (kicked) {
-      room.players = room.players.filter(p => p.id !== id);
-      delete room.scores[id];
-      delete room.votes[id];
-      io.to(id).emit("ended");
-      sendPlayersList();
-    }
+    room.players = room.players.filter(p => p.id !== id);
+    delete room.scores[id];
+    delete room.votes[id];
+    io.to(id).emit("ended");
+    sendPlayersList();
   });
 
   socket.on("leave", () => {
     const room = rooms[GAME_ROOM];
-    const player = room.players.find(p => p.id === socket.id);
-    if (player) {
-      room.players = room.players.filter(p => p.id !== socket.id);
-      delete room.scores[socket.id];
-      delete room.votes[socket.id];
-      sendPlayersList();
-    }
+    room.players = room.players.filter(p => p.id !== socket.id);
+    delete room.scores[socket.id];
+    delete room.votes[socket.id];
+    sendPlayersList();
   });
 
   socket.on("disconnect", () => {
-    const room = rooms[GAME_ROOM];
-    const player = room.players.find(p => p.id === socket.id);
-    if (!player) return;
-
-    room.players = room.players.filter(p => p.id !== socket.id);
-    delete room.votes[socket.id];
-
-    room.disconnected[player.name] = {
-      oldId: socket.id,
-      timeout: setTimeout(() => {
-        delete room.scores[socket.id];
-        delete room.disconnected[player.name];
-        sendPlayersList();
-      }, SESSION_TIMEOUT_MS)
-    };
-
+    // Nie usuwamy z room.players – reconnect działa przez name
     sendPlayersList();
   });
 });
