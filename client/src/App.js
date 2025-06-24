@@ -16,6 +16,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [remainingWords, setRemainingWords] = useState(null);
+  const [canVote, setCanVote] = useState(true);
 
   const socketRef = useRef(null);
 
@@ -33,10 +34,15 @@ function App() {
       setResult(null);
       setRemainingWords(remaining);
       setStep("game");
+      setCanVote(true);
     });
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
-    socket.on("joined", () => setStep("game"));
+    socket.on("joined", ({ currentWord }) => {
+      setStep("game");
+      setWord(currentWord);
+      setCanVote(false);
+    });
     socket.on("error", (err) => {
       setError(err.message);
       setStep("code");
@@ -64,7 +70,7 @@ function App() {
   };
 
   const voteImposter = (id) => {
-    if (!voted) {
+    if (!voted && canVote) {
       socketRef.current.emit("vote", id);
       setVoted(true);
     }
@@ -115,7 +121,7 @@ function App() {
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started && !voted && !result && p.id !== socketRef.current.id && p.canVote && (
+                    {started && !voted && !result && p.id !== socketRef.current.id && canVote && (
                       <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
                     )}
                     {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
