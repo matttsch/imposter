@@ -5,8 +5,8 @@ import "./App.css";
 
 function App() {
   const [step, setStep] = useState("code");
-  const [code, setCode] = useState(localStorage.getItem("code") || "");
-  const [name, setName] = useState(localStorage.getItem("name") || "");
+  const [code, setCode] = useState("");
+  const [name, setName] = useState("");
   const [players, setPlayers] = useState([]);
   const [word, setWord] = useState(null);
   const [started, setStarted] = useState(false);
@@ -33,23 +33,22 @@ function App() {
       setVoted(false);
       setResult(null);
     });
+
     socket.on("started", () => setStarted(true));
-    socket.on("ended", () => {
-      localStorage.removeItem("code");
-      localStorage.removeItem("name");
-      window.location.reload();
-    });
-    socket.on("joined", ({ currentWord }) => {
-      if (currentWord) {
-        setStarted(true);
-        setWord(currentWord);
+    socket.on("ended", () => window.location.reload());
+
+    socket.on("joined", (data) => {
+      if (data?.currentWord) {
+        setWord(data.currentWord);
       }
       setStep("game");
     });
+
     socket.on("error", (err) => {
       setError(err.message);
       setStep("code");
     });
+
     socket.on("scores", setScores);
     socket.on("result", setResult);
 
@@ -64,8 +63,6 @@ function App() {
 
   const joinRoom = () => {
     setError(null);
-    localStorage.setItem("code", code);
-    localStorage.setItem("name", name);
     socketRef.current.emit("join", { code, name });
   };
 
@@ -90,8 +87,6 @@ function App() {
 
   const leaveGame = () => {
     socketRef.current.emit("leave");
-    localStorage.removeItem("code");
-    localStorage.removeItem("name");
     window.location.reload();
   };
 
@@ -101,8 +96,6 @@ function App() {
 
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
-
-  const currentId = socketRef.current?.id;
 
   return (
     <div className={`container ${theme}`}>
@@ -130,7 +123,7 @@ function App() {
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started && !voted && !result && p.id !== currentId && (
+                    {started && !voted && !result && p.id !== socketRef.current.id && (
                       <button className="vote-btn" onClick={() => voteImposter(p.id)}>Głosuj</button>
                     )}
                     {voted && result?.voteHistory.some(v => v.from === name && v.to === p.name) && (
@@ -147,11 +140,6 @@ function App() {
           ) : (
             <div className="round-box">
               <h2 className="word-display">{word}</h2>
-              {remaining !== null && (
-                <p style={{ textAlign: "right", fontSize: "0.8rem", color: "gray", marginTop: "0.5rem" }}>
-                  Pozostało słów: {remaining}
-                </p>
-              )}
 
               {result && (
                 <div className="result-box">
@@ -190,6 +178,11 @@ function App() {
           )}
 
           <button className="leave-btn" onClick={leaveGame}>Opuść grę</button>
+          {remaining !== null && (
+            <div style={{ textAlign: "right", fontSize: "0.8rem", marginTop: "0.5rem" }}>
+              Pozostało słów: {remaining}
+            </div>
+          )}
         </div>
       )}
     </div>
