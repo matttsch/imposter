@@ -29,7 +29,7 @@ const rooms = {
     lastResult: null,
     usedWords: new Set(),
     currentWord: null,
-    currentMap: {},
+    currentMap: {},  // { id: "word" | "IMPOSTER" }
   }
 };
 
@@ -109,11 +109,16 @@ io.on("connection", (socket) => {
     // Jeśli gra trwa, to wyślij stan
     if (room.started) {
       socket.emit("started");
+      
+      // Jeśli gracz był impostorem, przypisz mu rolę "IMPOSTER"
       const currentWord = room.currentMap[socket.id] || room.currentWord;
-      const actualWord = currentWord === "IMPOSTER" ? room.currentWord : currentWord;
+      const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
+
       socket.emit("joined", { currentWord: actualWord });
+
+      // Jeśli gracz był impostorem, przypisz mu rolę znowu
       if (room.currentMap[socket.id] === "IMPOSTER") {
-        room.currentMap[socket.id] = "IMPOSTER";
+        room.currentMap[socket.id] = "IMPOSTER";  // Upewnij się, że impostor dostaje swoją rolę
       }
     } else {
       socket.emit("joined", {});
