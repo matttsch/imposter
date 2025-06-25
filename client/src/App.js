@@ -20,10 +20,30 @@ function App() {
 
   useEffect(() => {
     socketRef.current = io("https://imposter-014f.onrender.com", {
-      autoConnect: false
+      autoConnect: false,
+      pingTimeout: 30000,  // Timeout ping
+      pingInterval: 10000,  // Czas między pingami
     });
 
     const socket = socketRef.current;
+
+    socket.on("connect", () => {
+      console.log("Połączono z serwerem.");
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Rozłączono z serwerem.");
+      setError("Połączenie z serwerem zostało przerwane.");
+    });
+
+    socket.on("reconnect", () => {
+      console.log("Ponowne połączenie z serwerem.");
+      setError(null);
+    });
+
+    socket.on("reconnect_error", () => {
+      console.log("Błąd ponownego połączenia.");
+    });
 
     socket.on("players", setPlayers);
     socket.on("round", ({ word, remaining }) => {
@@ -51,13 +71,17 @@ function App() {
     socket.on("result", setResult);
 
     socket.connect();
-    return () => socket.disconnect();
-  }, []);
 
-  useEffect(() => {
-    document.body.className = theme;
-    document.documentElement.className = theme;
-  }, [theme]);
+    // Wysyłaj zapytanie o status co minutę
+    const checkGameStatus = setInterval(() => {
+      socket.emit("checkStatus");  // Zapytanie o status gry
+    }, 60000); // Co minutę
+
+    return () => {
+      clearInterval(checkGameStatus);  // Czyszczenie interwału
+      socket.disconnect();
+    };
+  }, []);
 
   const joinRoom = () => {
     setError(null);
