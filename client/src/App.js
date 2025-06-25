@@ -19,6 +19,7 @@ function App() {
   const socketRef = useRef(null);
 
   useEffect(() => {
+    // Initialize the socket connection
     socketRef.current = io("https://imposter-014f.onrender.com", {
       autoConnect: false,
       pingTimeout: 30000,  // Timeout ping
@@ -82,6 +83,12 @@ function App() {
       socket.disconnect();
     };
   }, []);
+
+  // Zmienianie klasy w html oraz body w zależności od wybranego trybu
+  useEffect(() => {
+    document.body.className = theme;  // Zmiana klasy w body
+    document.documentElement.className = theme;  // Zmiana klasy w html
+  }, [theme]);
 
   const joinRoom = () => {
     setError(null);
