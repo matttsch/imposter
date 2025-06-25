@@ -30,6 +30,7 @@ const rooms = {
     usedWords: new Set(),
     currentWord: null,
     currentMap: {},  // { id: "word" | "IMPOSTER" }
+    playerRoles: {}  // { name: "word" | "IMPOSTER" }
   }
 };
 
@@ -61,15 +62,17 @@ function sendNewRound() {
   room.voteHistory = [];
   room.lastResult = null;
   room.currentMap = {};
+  room.playerRoles = {};  // Reset ról graczy
 
   room.imposterIndex = Math.floor(Math.random() * players.length);
 
   players.forEach((player, i) => {
     const isImposter = i === room.imposterIndex;
-    const toSend = isImposter ? "IMPOSTER" : word;
-    room.currentMap[player.id] = toSend;
+    const role = isImposter ? "IMPOSTER" : word;
+    room.currentMap[player.id] = role;
+    room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi na podstawie jego imienia
     io.to(player.id).emit("round", {
-      word: toSend,
+      word: role,
       remaining: nouns.length - room.usedWords.size
     });
   });
@@ -109,17 +112,12 @@ io.on("connection", (socket) => {
     // Jeśli gra trwa, to wyślij stan
     if (room.started) {
       socket.emit("started");
-      
+
       // Jeśli gracz był impostorem, przypisz mu rolę "IMPOSTER"
-      const currentWord = room.currentMap[socket.id] || room.currentWord;
+      const currentWord = room.playerRoles[name] || room.currentWord;
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
 
       socket.emit("joined", { currentWord: actualWord });
-
-      // Jeśli gracz był impostorem, przypisz mu rolę znowu
-      if (room.currentMap[socket.id] === "IMPOSTER") {
-        room.currentMap[socket.id] = "IMPOSTER";  // Upewnij się, że impostor dostaje swoją rolę
-      }
     } else {
       socket.emit("joined", {});
     }
@@ -209,7 +207,8 @@ io.on("connection", (socket) => {
       lastResult: null,
       usedWords: new Set(),
       currentWord: null,
-      currentMap: {}
+      currentMap: {},
+      playerRoles: {}  // Reset player roles when the game ends
     };
     io.to(GAME_ROOM).emit("ended");
   });
