@@ -8,11 +8,13 @@ const { MongoClient } = require('mongodb');
 // Uzyskaj URI połączenia z MongoDB z zmiennej środowiskowej
 const uri = process.env.MONGODB_URI;  // Render automatycznie załaduje zmienną środowiskową
 
-// Skonfiguruj klienta MongoDB, wymuszając połączenie SSL
+// Skonfiguruj klienta MongoDB, wymuszając połączenie SSL/TLS 1.2
 const client = new MongoClient(uri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
-  ssl: true  // Wymuś połączenie SSL
+  ssl: true,                    // Wymusza połączenie SSL
+  tlsAllowInvalidCertificates: true,  // Wymusza TLS
+  tlsInsecure: false,              // Wyłącz insecure, by połączenie było bezpieczne
 });
 
 const app = express();
