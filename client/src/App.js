@@ -37,13 +37,13 @@ function App() {
       setError("Połączenie z serwerem zostało przerwane.");
     });
 
-    socket.on("reconnect", ({ playerVotes, voteHistory, scores }) => {
-      setVoted(playerVotes !== null);
-      setResult(voteHistory);
-      setScores(scores);
-      // Na przykład: wyświetlenie informacji o tym, na kogo gracz zagłosował
-      if (playerVotes) {
-        console.log(`Zagłosowałeś na: ${playerVotes}`);
+    socket.on("reconnect", ({ playerVote, voteHistory, scores }) => {
+      setVoted(playerVote !== null); // Jeśli gracz już zagłosował
+      setResult(voteHistory);  // Ustawiamy historię głosowania
+      setScores(scores);  // Ustawiamy wyniki głosowania
+
+      if (playerVote) {
+        console.log(`Zagłosowałeś na: ${playerVote.votedId}`);
       }
     });
 
@@ -262,4 +262,3 @@ function App() {
 }
 
 export default App;
- 
