@@ -62,7 +62,6 @@ function App() {
       }
     });
 
-    // Obsługuje status gracza po reconnect
     socket.on("playerStatus", ({ status }) => {
       setPlayerState(status);  // Odbieramy status gracza z serwera
     });
@@ -272,4 +271,3 @@ function App() {
 }
 
 export default App;
- 
