@@ -275,6 +275,19 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     // nie usuwamy z players, bo reconnect
   });
+
+  socket.on("reconnect", () => {
+    console.log(`Gracz po reconnect: ${socket.id}`);
+
+    const room = rooms[GAME_ROOM];
+
+    // Po reconnectcie gracz otrzymuje pełny stan głosów i wyników
+    const playerVotes = room.votes[socket.id] || null;  // Przechowujemy głos gracza
+    const voteHistory = room.voteHistory;  // Cała historia głosowania
+
+    // Zwracamy pełne dane: głosowanie, historia głosów, wynik
+    socket.emit("reconnect", { playerVotes, voteHistory, scores: room.scores });
+  });
 });
 
 // Połączenie z MongoDB
