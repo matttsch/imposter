@@ -1,3 +1,5 @@
+// Zmiany w kodzie serwera (index.js)
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -5,7 +7,8 @@ const fs = require("fs");
 const cors = require("cors");
 const { MongoClient } = require('mongodb');
 
-const uri = process.env.MONGODB_URI; // MongoDB URI from environment variable
+// MongoDB
+const uri = process.env.MONGODB_URI; 
 const client = new MongoClient(uri, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
@@ -39,11 +42,10 @@ const rooms = {
     currentWord: null,
     currentMap: {},
     playerRoles: {},
-    playerStates: {}  // Nowy obiekt do trzymania stanów graczy
+    playerStates: {}  // Stany graczy
   }
 };
 
-// Odczyt słów z pliku
 let nouns = Array.from(new Set(
   fs.readFileSync("polish_nouns.txt", "utf-8")
     .split("\n")
@@ -55,7 +57,7 @@ function sendPlayersList() {
   io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
 }
 
-// Funkcja do obliczania pozostałych słów
+// Funkcja obliczająca pozostałe słowa
 async function getRemainingWordsCount() {
   const room = rooms[GAME_ROOM];
   const database = client.db('imposter_game');
@@ -155,7 +157,6 @@ io.on("connection", (socket) => {
       socket.emit("started");
       const currentWord = room.playerRoles[name] || room.currentWord;
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
-
       socket.emit("joined", { currentWord: actualWord, playerState: room.playerStates[socket.id] });
     } else {
       socket.emit("joined", {});
