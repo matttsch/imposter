@@ -42,11 +42,13 @@ const rooms = {
     currentWord: null,
     currentMap: {},
     playerRoles: {},  // Roles przypisane do nazw graczy
-    playerStatus: {}  // Statusy graczy (ingame, voted, result)
+    playerStatus: {},  // Statusy graczy (ingame, voted, result)
   }
 };
 
-// Odczyt słów z pliku
+// Przechowywanie danych graczy (np. socket.id, status)
+const playersData = {};
+
 let nouns = Array.from(new Set(
   fs.readFileSync("polish_nouns.txt", "utf-8")
     .split("\n")
@@ -58,7 +60,6 @@ function sendPlayersList() {
   io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
 }
 
-// Funkcja do obliczania pozostałych słów
 async function getRemainingWordsCount() {
   const room = rooms[GAME_ROOM];
   const database = client.db('imposter_game');
@@ -132,17 +133,17 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Reconnect: Sprawdzamy, czy gracz już istnieje po reconnect
   socket.on("reconnect", () => {
     const room = rooms[GAME_ROOM];
-    const playerName = room.players.find(p => p.id === socket.id)?.name;
-
-    // Jeśli gracz istnieje, przywracamy status i głos
+    const playerName = Object.keys(playersData).find(name => playersData[name].id === socket.id);
+    
     if (playerName) {
-      console.log(`Gracz połączony: ${socket.id}, Imię: ${playerName}, Status: ${room.playerStatus[playerName]}`);
-      const playerStatus = room.playerStatus[playerName];
-      const playerVote = room.votes[playerName];
-      socket.emit("reconnect", { playerStatus, playerVote, scores: room.scores });
+      console.log(`Gracz połączony: ${socket.id}, Imię: ${playerName}, Status: ${playersData[playerName].status}`);
+      socket.emit("reconnect", {
+        playerStatus: playersData[playerName].status,
+        playerVote: playersData[playerName].vote,
+        scores: room.scores
+      });
     } else {
       console.log(`Nowy gracz połączony: ${socket.id}`);
     }
@@ -155,10 +156,10 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Sprawdzamy, czy gracz o tym imieniu już jest
+    // Sprawdzamy, czy gracz o danym imieniu już istnieje w pokoju
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
-      existingPlayer.id = socket.id; // Zaktualizowanie ID dla istniejącego gracza
+      existingPlayer.id = socket.id;  // Zaktualizowanie ID
     } else {
       room.players.push({ id: socket.id, name });
     }
@@ -166,6 +167,7 @@ io.on("connection", (socket) => {
     socket.join(GAME_ROOM);
     room.scores[name] = room.scores[name] || 0;
     room.playerStatus[name] = room.playerStatus[name] || "ingame";  // Przypisujemy domyślny status "ingame"
+    playersData[name] = { id: socket.id, status: room.playerStatus[name], vote: null }; // Dodajemy dane gracza
     sendPlayersList();
 
     if (room.started) {
@@ -203,6 +205,7 @@ io.on("connection", (socket) => {
     room.voteHistory.push({ from: playerName, to: votedName, playerName });
 
     room.playerStatus[playerName] = "voted";
+    playersData[playerName].vote = votedName; // Przechowujemy głos gracza
 
     const totalVotes = Object.keys(room.votes).length;
     const totalPlayers = room.players.length;
