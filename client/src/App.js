@@ -15,6 +15,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
+  const [playerStatus, setPlayerStatus] = useState(null);  // Status gracza
 
   const socketRef = useRef(null);
 
@@ -60,6 +61,18 @@ function App() {
     });
     socket.on("scores", setScores);
     socket.on("result", setResult);
+
+    socket.on("reconnect", ({ playerStatus, scores }) => {
+      setPlayerStatus(playerStatus);
+      setScores(scores);
+      if (playerStatus === "voted") {
+        setStep("voted");
+      } else if (playerStatus === "result") {
+        setStep("result");
+      } else {
+        setStep("ingame");
+      }
+    });
 
     socket.connect();
 
