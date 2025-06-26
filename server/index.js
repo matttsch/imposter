@@ -185,6 +185,12 @@ io.on("connection", (socket) => {
     const room = rooms[GAME_ROOM];
     const playerName = room.players.find(p => p.id === socket.id).name;
 
+    // Jeśli gracz już zagłosował, nie pozwalamy mu głosować ponownie
+    if (playersData[playerName].vote) {
+      console.log(`${playerName} próbował zagłosować ponownie, ale już zagłosował`);
+      return;
+    }
+
     room.votes[playerName] = { votedName, playerName };
     room.voteHistory.push({ from: playerName, to: votedName, playerName });
 
