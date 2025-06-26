@@ -186,19 +186,21 @@ io.on("connection", (socket) => {
 
   socket.on("vote", (votedId) => {
     const room = rooms[GAME_ROOM];
-    if (!room.players.some(p => p.id === socket.id)) return;
-    if (!room.players.some(p => p.id === votedId)) return;
+    const playerName = room.players.find(p => p.id === socket.id).name;
 
-    room.votes[socket.id] = votedId;
-    room.voteHistory.push({ from: socket.id, to: votedId });
+    // Zapisujemy głos gracza z jego imieniem
+    room.votes[socket.id] = { votedId, playerName };  // Zapisujemy głos
+    room.voteHistory.push({ from: socket.id, to: votedId, playerName });  // Historia głosów
 
     const totalVotes = Object.keys(room.votes).length;
     const totalPlayers = room.players.length;
 
     if (totalVotes === totalPlayers) {
       const voteCounts = {};
-      Object.values(room.votes).forEach((id) => {
-        voteCounts[id] = (voteCounts[id] || 0) + 1;
+
+      // Zliczanie głosów
+      Object.values(room.votes).forEach(({ votedId }) => {
+        voteCounts[votedId] = (voteCounts[votedId] || 0) + 1;
       });
 
       const maxVotes = Math.max(...Object.values(voteCounts));
@@ -222,10 +224,10 @@ io.on("connection", (socket) => {
       room.lastResult = {
         votedOut: votedOutNames.length === 1 ? votedOutNames[0] : votedOutNames,
         imposterName: imposter.name,
-        voteHistory: room.voteHistory.map(({ from, to }) => {
+        voteHistory: room.voteHistory.map(({ from, to, playerName }) => {
           const fromName = room.players.find(p => p.id === from)?.name;
           const toName = room.players.find(p => p.id === to)?.name;
-          return { from: fromName, to: toName };
+          return { from: fromName, to: toName, playerName };
         })
       };
 
@@ -282,11 +284,11 @@ io.on("connection", (socket) => {
     const room = rooms[GAME_ROOM];
 
     // Po reconnectcie gracz otrzymuje pełny stan głosów i wyników
-    const playerVotes = room.votes[socket.id] || null;  // Przechowujemy głos gracza
+    const playerVote = room.votes[socket.id] || null;  // Głos gracza
     const voteHistory = room.voteHistory;  // Cała historia głosowania
 
     // Zwracamy pełne dane: głosowanie, historia głosów, wynik
-    socket.emit("reconnect", { playerVotes, voteHistory, scores: room.scores });
+    socket.emit("reconnect", { playerVote, voteHistory, scores: room.scores });
   });
 });
 
