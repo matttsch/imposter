@@ -137,14 +137,6 @@ io.on("connection", (socket) => {
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
       // Gracz już istnieje - przypisujemy mu nowe socket.id
-      const oldSocketId = existingPlayer.id;
-
-      // Usuwamy stare socket.id z głosowania i danych gracza
-      if (oldSocketId) {
-        delete room.votes[oldSocketId];  // Usuwamy stare socket.id z głosów
-        delete playersData[existingPlayer.name];  // Usuwamy stare dane gracza
-      }
-
       existingPlayer.id = socket.id;
       console.log(`Gracz z imieniem ${name} dołączył ponownie. Nowe socket.id: ${socket.id}`);
     } else {
@@ -306,4 +298,3 @@ client.connect()
     server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
   })
   .catch(console.error);
- 
