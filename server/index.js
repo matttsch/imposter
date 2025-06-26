@@ -41,7 +41,7 @@ const rooms = {
     usedWords: new Set(),
     currentWord: null,
     currentMap: {},
-    playerRoles: {}  // Trzymamy również status w playerRoles
+    playerRoles: {}  // Gracze będą tutaj przechowywać swoje statusy
   }
 };
 
@@ -103,7 +103,7 @@ async function sendNewRound() {
         const isImposter = i === room.imposterIndex;
         const role = isImposter ? "IMPOSTER" : word;
         room.currentMap[player.id] = role;
-        room.playerRoles[player.name] = { role, status: "ingame" };  // Przypisujemy rolę graczowi z "ingame"
+        room.playerRoles[player.name] = { role, status: "ingame" };  // Ustawiamy status "ingame"
         io.to(player.id).emit("round", {
           word: role,
           remaining: remainingWords
@@ -134,16 +134,16 @@ io.on("connection", (socket) => {
       return;
     }
 
-    // Jeżeli gracz jest już w grze, zachowujemy jego status (ingame, voted, result)
+    // Jeśli gracz już istnieje, przypiszemy mu status
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
-      existingPlayer.id = socket.id; // Ponowne przypisanie ID
+      existingPlayer.id = socket.id;  // Przypisanie ID gracza, który robi reconnect
       socket.emit("joined", {
         currentWord: room.currentMap[existingPlayer.id],
         status: room.playerRoles[existingPlayer.name]?.status || "ingame"
       });
     } else {
-      room.players.push({ id: socket.id, name, status: "ingame" });  // Nowy gracz dołącza
+      room.players.push({ id: socket.id, name, status: "ingame" });
       socket.emit("joined", {
         currentWord: room.currentMap[socket.id],
         status: "ingame"
@@ -154,7 +154,7 @@ io.on("connection", (socket) => {
     room.scores[socket.id] = room.scores[socket.id] || 0;
     sendPlayersList();
 
-    // Jeśli gra już trwa, ustawiamy status gracza
+    // Jeśli gra trwa, to wysyłamy status gracza
     if (room.started) {
       socket.emit("started");
       const currentWord = room.playerRoles[name] || room.currentWord;
@@ -222,7 +222,7 @@ io.on("connection", (socket) => {
       };
 
       room.players.forEach((player) => {
-        player.status = "result";  // Ustawiamy status "result" po zakończeniu głosowania
+        player.status = "result";  // Zmieniamy status na "result" po zakończeniu głosowania
       });
 
       io.to(GAME_ROOM).emit("result", room.lastResult);
