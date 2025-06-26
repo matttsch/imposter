@@ -233,4 +233,48 @@ io.on("connection", (socket) => {
   });
 
   socket.on("leave", () => {
-    const room = r
+    const room = rooms[GAME_ROOM];
+    room.players = room.players.filter(p => p.id !== socket.id);
+    delete room.scores[socket.id];
+    delete room.votes[socket.id];
+    sendPlayersList();
+  });
+
+  socket.on("end", () => {
+    rooms[GAME_ROOM] = {
+      players: [],
+      started: false,
+      votes: {},
+      scores: {},
+      imposterIndex: null,
+      voteHistory: [],
+      lastResult: null,
+      usedWords: new Set(),
+      currentWord: null,
+      currentMap: {},
+      playerRoles: {}
+    };
+    io.to(GAME_ROOM).emit("ended");
+  });
+
+  socket.on("kick", (id) => {
+    const room = rooms[GAME_ROOM];
+    room.players = room.players.filter(p => p.id !== id);
+    delete room.scores[id];
+    delete room.votes[id];
+    io.to(id).emit("ended");
+    sendPlayersList();
+  });
+
+  socket.on("disconnect", () => {
+    // nie usuwamy z players, bo reconnect
+  });
+});
+
+// Połączenie z MongoDB
+client.connect()
+  .then(() => {
+    console.log("Połączono z MongoDB!");
+    server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+  })
+  .catch(console.error);
