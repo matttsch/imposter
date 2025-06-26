@@ -31,9 +31,9 @@ const GAME_ROOM = "main-room";
 
 const rooms = {
   [GAME_ROOM]: {
-    players: [],
+    players: [],  // Gracze będą przechowywani po nazwach
     started: false,
-    votes: {}, // Głosy przechowywane z imionami graczy
+    votes: {}, // Głosy będą przypisane do nazw graczy
     scores: {},
     imposterIndex: null,
     voteHistory: [],
@@ -41,7 +41,7 @@ const rooms = {
     usedWords: new Set(),
     currentWord: null,
     currentMap: {},
-    playerRoles: {}
+    playerRoles: {}  // Roles przypisane do nazw graczy
   }
 };
 
@@ -114,7 +114,7 @@ async function sendNewRound() {
       players.forEach((player, i) => {
         const isImposter = i === room.imposterIndex;
         const role = isImposter ? "IMPOSTER" : word;
-        room.currentMap[player.id] = role;
+        room.currentMap[player.name] = role;
         room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi na podstawie jego imienia
         io.to(player.id).emit("round", {
           word: role,
@@ -150,20 +150,19 @@ io.on("connection", (socket) => {
 
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
-      existingPlayer.id = socket.id; // aktualizacja ID
+      existingPlayer.id = socket.id; // Zaktualizowanie ID
     } else {
       room.players.push({ id: socket.id, name });
     }
 
     socket.join(GAME_ROOM);
-    room.scores[socket.id] = room.scores[socket.id] || 0;
+    room.scores[name] = room.scores[name] || 0;  // Używamy nazwy gracza do przechowywania wyników
     sendPlayersList();
 
-    // Jeśli gra trwa, to wyślij stan
+    // Jeśli gra już wystartowała, wyślij dane o grze
     if (room.started) {
       socket.emit("started");
 
-      // Jeśli gracz był impostorem, przypisz mu rolę "IMPOSTER"
       const currentWord = room.playerRoles[name] || room.currentWord;
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
 
@@ -184,13 +183,13 @@ io.on("connection", (socket) => {
     sendNewRound();
   });
 
-  socket.on("vote", (votedId) => {
+  socket.on("vote", (votedName) => {  // Zmieniamy na votedName (nazwa gracza, na którego głosujemy)
     const room = rooms[GAME_ROOM];
-    const playerName = room.players.find(p => p.id === socket.id).name;
+    const playerName = room.players.find(p => p.id === socket.id).name;  // Używamy name zamiast socket.id
 
-    // Zapisujemy głos gracza z jego imieniem
-    room.votes[socket.id] = { votedId, playerName };  // Zapisujemy głos
-    room.voteHistory.push({ from: socket.id, to: votedId, playerName });  // Historia głosów
+    // Zapisujemy głos gracza na podstawie imienia
+    room.votes[playerName] = { votedName, playerName };
+    room.voteHistory.push({ from: playerName, to: votedName, playerName });
 
     const totalVotes = Object.keys(room.votes).length;
     const totalPlayers = room.players.length;
@@ -199,35 +198,33 @@ io.on("connection", (socket) => {
       const voteCounts = {};
 
       // Zliczanie głosów
-      Object.values(room.votes).forEach(({ votedId }) => {
-        voteCounts[votedId] = (voteCounts[votedId] || 0) + 1;
+      Object.values(room.votes).forEach(({ votedName }) => {
+        voteCounts[votedName] = (voteCounts[votedName] || 0) + 1;
       });
 
       const maxVotes = Math.max(...Object.values(voteCounts));
-      const topVotedIds = Object.entries(voteCounts)
+      const topVotedNames = Object.entries(voteCounts)
         .filter(([_, v]) => v === maxVotes)
-        .map(([id]) => id);
+        .map(([name]) => name);
 
-      const votedOutNames = topVotedIds.map(id => room.players.find(p => p.id === id)?.name);
+      const votedOutNames = topVotedNames;
       const imposter = room.players[room.imposterIndex];
 
-      if (topVotedIds.includes(imposter.id)) {
-        for (const [voterId, votedId] of Object.entries(room.votes)) {
-          if (votedId === imposter.id) {
-            room.scores[voterId] = (room.scores[voterId] || 0) + 1;
+      if (topVotedNames.includes(imposter.name)) {
+        for (const [voterName, votedName] of Object.entries(room.votes)) {
+          if (votedName === imposter.name) {
+            room.scores[voterName] = (room.scores[voterName] || 0) + 1;
           }
         }
       } else {
-        room.scores[imposter.id] = (room.scores[imposter.id] || 0) + 1;
+        room.scores[imposter.name] = (room.scores[imposter.name] || 0) + 1;
       }
 
       room.lastResult = {
         votedOut: votedOutNames.length === 1 ? votedOutNames[0] : votedOutNames,
         imposterName: imposter.name,
         voteHistory: room.voteHistory.map(({ from, to, playerName }) => {
-          const fromName = room.players.find(p => p.id === from)?.name;
-          const toName = room.players.find(p => p.id === to)?.name;
-          return { from: fromName, to: toName, playerName };
+          return { from, to, playerName };
         })
       };
 
@@ -265,12 +262,12 @@ io.on("connection", (socket) => {
     io.to(GAME_ROOM).emit("ended");
   });
 
-  socket.on("kick", (id) => {
+  socket.on("kick", (name) => {
     const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== id);
-    delete room.scores[id];
-    delete room.votes[id];
-    io.to(id).emit("ended");
+    room.players = room.players.filter(p => p.name !== name);
+    delete room.scores[name];
+    delete room.votes[name];
+    io.to(name).emit("ended");
     sendPlayersList();
   });
 
@@ -284,7 +281,8 @@ io.on("connection", (socket) => {
     const room = rooms[GAME_ROOM];
 
     // Po reconnectcie gracz otrzymuje pełny stan głosów i wyników
-    const playerVote = room.votes[socket.id] || null;  // Głos gracza
+    const playerName = room.players.find(p => p.id === socket.id).name;
+    const playerVote = room.votes[playerName] || null;  // Głos gracza
     const voteHistory = room.voteHistory;  // Cała historia głosowania
 
     // Zwracamy pełne dane: głosowanie, historia głosów, wynik
