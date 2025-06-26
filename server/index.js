@@ -41,7 +41,7 @@ const rooms = {
     usedWords: new Set(),
     currentWord: null,
     currentMap: {},
-    playerRoles: {},
+    playerRoles: {}
   }
 };
 
@@ -137,9 +137,11 @@ io.on("connection", (socket) => {
 
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
-      existingPlayer.id = socket.id;
+      existingPlayer.id = socket.id;  // Przypisanie ID gracza, który robi reconnect
+      socket.emit("joined", { currentWord: room.currentMap[existingPlayer.id], status: existingPlayer.status });
     } else {
-      room.players.push({ id: socket.id, name, status: "ingame" });  // Przypisujemy status "ingame"
+      room.players.push({ id: socket.id, name, status: "ingame" });  // Nowy gracz dołącza z domyślnym statusem "ingame"
+      socket.emit("joined", { currentWord: room.currentMap[socket.id], status: "ingame" });
     }
 
     socket.join(GAME_ROOM);
@@ -151,9 +153,7 @@ io.on("connection", (socket) => {
       socket.emit("started");
       const currentWord = room.playerRoles[name] || room.currentWord;
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
-
       socket.emit("joined", { currentWord: actualWord });
-      socket.emit("playerStatus", { status: room.players.find(p => p.id === socket.id)?.status });  // Wysyłamy status gracza
     } else {
       socket.emit("joined", {});
     }
