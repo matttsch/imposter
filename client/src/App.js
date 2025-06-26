@@ -37,13 +37,14 @@ function App() {
       setError("Połączenie z serwerem zostało przerwane.");
     });
 
-    socket.on("reconnect", () => {
-      console.log("Ponowne połączenie z serwerem.");
-      setError(null);
-    });
+    socket.on("reconnect", ({ playerVote, voteHistory, scores }) => {
+      setVoted(playerVote !== null); // Jeśli gracz już zagłosował
+      setResult(voteHistory);  // Ustawiamy historię głosowania
+      setScores(scores);  // Ustawiamy wyniki głosowania
 
-    socket.on("reconnect_error", () => {
-      console.log("Błąd ponownego połączenia.");
+      if (playerVote) {
+        console.log(`Zagłosowałeś na: ${playerVote.votedId}`);
+      }
     });
 
     socket.on("players", setPlayers);
@@ -73,22 +74,10 @@ function App() {
 
     socket.connect();
 
-    // Wysyłaj zapytanie o status co minutę
-    const checkGameStatus = setInterval(() => {
-      socket.emit("checkStatus");  // Zapytanie o status gry
-    }, 60000); // Co minutę
-
     return () => {
-      clearInterval(checkGameStatus);  // Czyszczenie interwału
       socket.disconnect();
     };
   }, []);
-
-  // Zmienianie klasy w html oraz body w zależności od wybranego trybu
-  useEffect(() => {
-    document.body.className = theme;  // Zmiana klasy w body
-    document.documentElement.className = theme;  // Zmiana klasy w html
-  }, [theme]);
 
   const joinRoom = () => {
     setError(null);
