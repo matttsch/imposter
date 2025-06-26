@@ -1,3 +1,5 @@
+require('dotenv').config();  // Załaduj zmienne środowiskowe
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -5,8 +7,8 @@ const fs = require("fs");
 const cors = require("cors");
 const { MongoClient } = require('mongodb');
 
-// MongoDB URI i konfiguracja klienta
-const uri = "mongodb+srv://sznamat:TOLVg49ciOvCRMoy@cluster0.mongodb.net/imposter_game?retryWrites=true&w=majority";
+// MongoDB URI z zmiennych środowiskowych
+const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
 const app = express();
@@ -39,6 +41,7 @@ const rooms = {
   }
 };
 
+// Odczyt słów z pliku
 let nouns = Array.from(new Set(
   fs.readFileSync("polish_nouns.txt", "utf-8")
     .split("\n")
@@ -71,7 +74,7 @@ function sendNewRound() {
     const database = client.db('imposter_game');
     const wordsCollection = database.collection('used_words');
     
-    // Sprawdzanie, czy słowo już istnieje w bazie danych
+    // Sprawdzanie, czy słowo już jest w bazie danych
     const existingWord = await wordsCollection.findOne({ word: word });
     
     // Jeśli słowo już jest w bazie danych, losujemy inne
@@ -254,6 +257,7 @@ io.on("connection", (socket) => {
   });
 });
 
+// Połączenie z MongoDB
 client.connect()
   .then(() => {
     console.log("Połączono z MongoDB!");
