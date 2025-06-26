@@ -123,7 +123,6 @@ async function sendNewRound() {
 io.on("connection", (socket) => {
   console.log(`Gracz połączony: ${socket.id}`);
 
-  // Sprawdzanie statusu gry
   socket.on("checkStatus", () => {
     const room = rooms[GAME_ROOM];
     if (room.started) {
@@ -133,20 +132,22 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Dodajemy obsługę reconnectu
+  // Reconnect: Sprawdzamy, czy gracz już istnieje po reconnect
   socket.on("reconnect", () => {
     const room = rooms[GAME_ROOM];
     const playerName = room.players.find(p => p.id === socket.id)?.name;
 
-    // Jeśli gracz ma zapisany status, przywracamy go
+    // Jeśli gracz istnieje, przywracamy status i głos
     if (playerName) {
+      console.log(`Gracz połączony: ${socket.id}, Imię: ${playerName}, Status: ${room.playerStatus[playerName]}`);
       const playerStatus = room.playerStatus[playerName];
       const playerVote = room.votes[playerName];
       socket.emit("reconnect", { playerStatus, playerVote, scores: room.scores });
+    } else {
+      console.log(`Nowy gracz połączony: ${socket.id}`);
     }
   });
 
-  // Łączenie gracza do pokoju
   socket.on("join", ({ code, name }) => {
     const room = rooms[GAME_ROOM];
     if (code !== ACCESS_CODE) {
@@ -154,9 +155,10 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // Sprawdzamy, czy gracz o tym imieniu już jest
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
-      existingPlayer.id = socket.id; // Zaktualizowanie ID
+      existingPlayer.id = socket.id; // Zaktualizowanie ID dla istniejącego gracza
     } else {
       room.players.push({ id: socket.id, name });
     }
