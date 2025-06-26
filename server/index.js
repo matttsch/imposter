@@ -57,7 +57,7 @@ function sendPlayersList() {
   io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
 }
 
-// Funkcja do obliczania pozostałych słów (teraz synchroniczna)
+// Funkcja do obliczania pozostałych słów
 function getRemainingWordsCount() {
   const room = rooms[GAME_ROOM];
   const database = client.db('imposter_game');
@@ -71,7 +71,7 @@ function getRemainingWordsCount() {
   return remainingWordsCount;
 }
 
-function sendNewRound() {
+async function sendNewRound() {
   const room = rooms[GAME_ROOM];
   const players = room.players;
 
@@ -105,6 +105,9 @@ function sendNewRound() {
       room.currentMap = {};
       room.playerRoles = {}; // Resetujemy role graczy
 
+      // Losowanie impostera
+      room.imposterIndex = Math.floor(Math.random() * players.length);  // Losowanie indeksu impostera
+
       players.forEach((player, i) => {
         const isImposter = i === room.imposterIndex;
         const role = isImposter ? "IMPOSTER" : word;
@@ -112,14 +115,14 @@ function sendNewRound() {
         room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi na podstawie jego imienia
         io.to(player.id).emit("round", {
           word: role,
-          remaining: getRemainingWordsCount() // Licznik pozostałych słów (teraz synchroniczny)
+          remaining: getRemainingWordsCount() // Licznik pozostałych słów
         });
       });
     }
   }
 
   // Uruchomienie funkcji sprawdzającej unikalność słowa
-  getUniqueWord().catch(console.error);
+  await getUniqueWord().catch(console.error);
 }
 
 io.on("connection", (socket) => {
