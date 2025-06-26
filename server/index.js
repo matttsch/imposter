@@ -41,8 +41,7 @@ const rooms = {
     usedWords: new Set(),
     currentWord: null,
     currentMap: {},
-    playerRoles: {},
-    playerStatuses: {}  // Przechowujemy statusy graczy
+    playerRoles: {}
   }
 };
 
@@ -105,7 +104,7 @@ async function sendNewRound() {
         const role = isImposter ? "IMPOSTER" : word;
         room.currentMap[player.id] = role;
         room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi
-        room.playerStatuses[player.id] = "ingame"; // Ustawiamy status "ingame"
+        player.status = "ingame"; // Ustawiamy status "ingame" dla gracza
         io.to(player.id).emit("round", {
           word: role,
           remaining: remainingWords
@@ -140,7 +139,7 @@ io.on("connection", (socket) => {
     if (existingPlayer) {
       existingPlayer.id = socket.id;
     } else {
-      room.players.push({ id: socket.id, name });
+      room.players.push({ id: socket.id, name, status: "ingame" });  // Przypisujemy status "ingame"
     }
 
     socket.join(GAME_ROOM);
@@ -154,7 +153,7 @@ io.on("connection", (socket) => {
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
 
       socket.emit("joined", { currentWord: actualWord });
-      socket.emit("playerStatus", { status: room.playerStatuses[socket.id] });  // Wysyłamy status gracza
+      socket.emit("playerStatus", { status: room.players.find(p => p.id === socket.id)?.status });  // Wysyłamy status gracza
     } else {
       socket.emit("joined", {});
     }
@@ -217,7 +216,7 @@ io.on("connection", (socket) => {
       };
 
       room.players.forEach((player) => {
-        room.playerStatuses[player.id] = "result"; // Ustawiamy status "result" po zakończeniu głosowania
+        player.status = "result";  // Ustawiamy status "result" po zakończeniu głosowania
       });
 
       io.to(GAME_ROOM).emit("result", room.lastResult);
@@ -250,7 +249,6 @@ io.on("connection", (socket) => {
       currentWord: null,
       currentMap: {},
       playerRoles: {},
-      playerStatuses: {} // Resetujemy statusy
     };
     io.to(GAME_ROOM).emit("ended");
   });
