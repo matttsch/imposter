@@ -162,6 +162,11 @@ io.on("connection", (socket) => {
     } else {
       socket.emit("joined", {});
     }
+
+    // Jeśli gracz już zagłosował, nie pozwalamy mu głosować ponownie
+    if (playersData[name].vote) {
+      socket.emit("alreadyVoted", { votedName: playersData[name].vote });
+    }
   });
 
   socket.on("start", () => {
