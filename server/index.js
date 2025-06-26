@@ -64,7 +64,7 @@ function getRemainingWordsCount() {
   const wordsCollection = database.collection('used_words');
 
   // Pobieranie liczby słów w kolekcji MongoDB
-  const usedWordsCount = wordsCollection.countDocuments();
+  const usedWordsCount = wordsCollection.countDocuments();  // Metoda do zliczania dokumentów w kolekcji
 
   // Liczba słów w pliku - liczba słów w kolekcji
   const remainingWordsCount = nouns.length - usedWordsCount;
@@ -115,7 +115,7 @@ async function sendNewRound() {
         room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi na podstawie jego imienia
         io.to(player.id).emit("round", {
           word: role,
-          remaining: getRemainingWordsCount() // Licznik pozostałych słów
+          remaining: getRemainingWordsCount() // Licznik pozostałych słów (teraz synchroniczny)
         });
       });
     }
