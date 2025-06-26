@@ -15,7 +15,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
-  const [playerState, setPlayerState] = useState(""); // Nowy stan gracza
+  const [playerState, setPlayerState] = useState(""); // Stan gracza
 
   const socketRef = useRef(null);
 
