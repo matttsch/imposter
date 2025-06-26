@@ -43,10 +43,6 @@ function App() {
       setError(null);
     });
 
-    socket.on("reconnect_error", () => {
-      console.log("Błąd ponownego połączenia.");
-    });
-
     socket.on("players", setPlayers);
     socket.on("round", ({ word, remaining }) => {
       setWord(word);
