@@ -62,6 +62,7 @@ function App() {
     socket.on("scores", setScores);
     socket.on("result", setResult);
 
+    // Nasłuchujemy na komunikat o reconnect
     socket.on("reconnect", ({ playerStatus, scores }) => {
       setPlayerStatus(playerStatus);
       setScores(scores);
@@ -264,4 +265,3 @@ function App() {
 }
 
 export default App;
- 
