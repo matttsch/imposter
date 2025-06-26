@@ -41,7 +41,8 @@ const rooms = {
     usedWords: new Set(),
     currentWord: null,
     currentMap: {},
-    playerRoles: {}
+    playerRoles: {},
+    votedPlayers: {} // Dodajemy obiekt, który śledzi, którzy gracze już zagłosowali
   }
 };
 
@@ -168,6 +169,13 @@ io.on("connection", (socket) => {
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
 
       socket.emit("joined", { currentWord: actualWord });
+
+      // Sprawdź, czy gracz już zagłosował i przekaż odpowiedni stan
+      if (room.votes[socket.id]) {
+        socket.emit("voted", { voted: true });
+      } else {
+        socket.emit("voted", { voted: false });
+      }
     } else {
       socket.emit("joined", {});
     }
@@ -188,6 +196,12 @@ io.on("connection", (socket) => {
     const room = rooms[GAME_ROOM];
     if (!room.players.some(p => p.id === socket.id)) return;
     if (!room.players.some(p => p.id === votedId)) return;
+
+    // Jeśli gracz już zagłosował, nie pozwalamy mu ponownie głosować
+    if (room.votes[socket.id]) {
+      socket.emit("error", { message: "Już zagłosowałeś!" });
+      return;
+    }
 
     room.votes[socket.id] = votedId;
     room.voteHistory.push({ from: socket.id, to: votedId });
@@ -258,7 +272,8 @@ io.on("connection", (socket) => {
       usedWords: new Set(),
       currentWord: null,
       currentMap: {},
-      playerRoles: {}
+      playerRoles: {},
+      votedPlayers: {}  // Reset votedPlayers przy końcu gry
     };
     io.to(GAME_ROOM).emit("ended");
   });
