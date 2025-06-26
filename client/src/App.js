@@ -122,7 +122,7 @@ function App() {
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
 
   return (
-    <div className={`container ${theme}`}>
+    <div className={container ${theme}}>
       <h1 className="logo">
         IMPOSTER <span>by @matttsch</span>
       </h1>
