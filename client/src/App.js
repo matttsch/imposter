@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "./App.css";
 
-
 function App() {
   const [step, setStep] = useState("code");
   const [code, setCode] = useState(localStorage.getItem("code") || "");
