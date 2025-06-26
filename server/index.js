@@ -3,25 +3,11 @@ const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
 const cors = require("cors");
-const { MongoClient } = require('mongodb');
-
-// Uzyskaj URI połączenia z MongoDB z zmiennej środowiskowej
-const uri = process.env.MONGODB_URI;  // Render automatycznie załaduje zmienną środowiskową
-
-// Skonfiguruj klienta MongoDB, wymuszając połączenie SSL
-const client = new MongoClient(uri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  ssl: true  // Wymuś połączenie SSL
-});
 
 const app = express();
 app.use(cors());
 
-// Utwórz serwer HTTP
 const server = http.createServer(app);
-
-// Inicjalizujemy instancję `io` po utworzeniu serwera HTTP
 const io = new Server(server, {
   cors: { origin: "*" },
   pingTimeout: 30000,
@@ -45,7 +31,7 @@ const rooms = {
     currentWord: null,
     currentMap: {},
     playerRoles: {},
-    playerStates: {}  // Stany graczy
+    playerStates: {},  // Stany graczy
   }
 };
 
