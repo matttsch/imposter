@@ -42,7 +42,7 @@ const rooms = {
     currentWord: null,
     currentMap: {},
     playerRoles: {},
-    playerStatuses: {} // Dodajemy pole do przechowywania statusów graczy
+    playerStatuses: {}  // Przechowujemy statusy graczy
   }
 };
 
@@ -147,6 +147,7 @@ io.on("connection", (socket) => {
     room.scores[socket.id] = room.scores[socket.id] || 0;
     sendPlayersList();
 
+    // Jeśli gra już trwa, ustawiamy status gracza
     if (room.started) {
       socket.emit("started");
       const currentWord = room.playerRoles[name] || room.currentWord;
