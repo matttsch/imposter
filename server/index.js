@@ -124,15 +124,7 @@ async function sendNewRound() {
 io.on("connection", (socket) => {
   console.log(`Gracz połączony: ${socket.id}`);
 
-  socket.on("checkStatus", () => {
-    const room = rooms[GAME_ROOM];
-    if (room.started) {
-      socket.emit("gameStatus", { status: "running" });
-    } else {
-      socket.emit("gameStatus", { status: "stopped" });
-    }
-  });
-
+  // Reconnect: Sprawdzamy, czy gracz już istnieje po reconnect
   socket.on("reconnect", () => {
     const room = rooms[GAME_ROOM];
     const playerName = Object.keys(playersData).find(name => playersData[name].id === socket.id);
@@ -146,6 +138,15 @@ io.on("connection", (socket) => {
       });
     } else {
       console.log(`Nowy gracz połączony: ${socket.id}`);
+    }
+  });
+
+  socket.on("checkStatus", () => {
+    const room = rooms[GAME_ROOM];
+    if (room.started) {
+      socket.emit("gameStatus", { status: "running" });
+    } else {
+      socket.emit("gameStatus", { status: "stopped" });
     }
   });
 
