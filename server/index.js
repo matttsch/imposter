@@ -8,7 +8,12 @@ const { MongoClient } = require('mongodb');
 // Uzyskaj URI połączenia z MongoDB z zmiennej środowiskowej
 const uri = process.env.MONGODB_URI;  // Render automatycznie załaduje zmienną środowiskową
 
-const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
+// Skonfiguruj klienta MongoDB, wymuszając połączenie SSL
+const client = new MongoClient(uri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  ssl: true  // Wymuś połączenie SSL
+});
 
 const app = express();
 app.use(cors());
