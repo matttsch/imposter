@@ -41,7 +41,7 @@ const rooms = {
     usedWords: new Set(),
     currentWord: null,
     currentMap: {},
-    playerRoles: {}
+    playerRoles: {},
   }
 };
 
