@@ -179,9 +179,6 @@ function App() {
                     {voted && votedPlayer === p.name && (
                       <em className="voted-note">Zagłosowałeś na {p.name}</em>
                     )}
-                    {voted && !result && (
-                      <em className="waiting-note">Czekamy na pozostałych graczy...</em>
-                    )}
                   </div>
                 </li>
               ))}
