@@ -169,6 +169,12 @@ function App() {
                     {waitingForOtherPlayers && (
                       <p className="voted-note">Czekamy na pozostałych graczy...</p> // Informacja, że gracz czeka
                     )}
+                    {playerState === "voted" && (
+                      <p className="voted-note">Już zagłosowałeś!</p> // Po głosowaniu
+                    )}
+                    {playerState === "after_vote" && (
+                      <p className="voted-note">Czekamy na wyniki...</p> // Po zakończeniu głosowania
+                    )}
                   </div>
                 </li>
               ))}
