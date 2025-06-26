@@ -42,7 +42,7 @@ const rooms = {
     currentWord: null,
     currentMap: {},
     playerRoles: {},
-    playerStatuses: {}, // Dodajemy statusy graczy
+    playerStatuses: {} // Dodajemy pole do przechowywania statusów graczy
   }
 };
 
@@ -57,6 +57,7 @@ function sendPlayersList() {
   io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
 }
 
+// Funkcja do obliczania pozostałych słów
 async function getRemainingWordsCount() {
   const room = rooms[GAME_ROOM];
   const database = client.db('imposter_game');
@@ -137,7 +138,7 @@ io.on("connection", (socket) => {
 
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
-      existingPlayer.id = socket.id;
+      existingPlayer.id = socket.id; // Aktualizacja ID
     } else {
       room.players.push({ id: socket.id, name });
     }
@@ -146,12 +147,14 @@ io.on("connection", (socket) => {
     room.scores[socket.id] = room.scores[socket.id] || 0;
     sendPlayersList();
 
+    // Jeśli gra już trwa, ustawiamy status gracza
     if (room.started) {
       socket.emit("started");
       const currentWord = room.playerRoles[name] || room.currentWord;
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
 
       socket.emit("joined", { currentWord: actualWord });
+      socket.emit("playerStatus", { status: room.playerStatuses[socket.id] });  // Wysyłamy status gracza
     } else {
       socket.emit("joined", {});
     }
