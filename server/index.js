@@ -167,6 +167,12 @@ io.on("connection", (socket) => {
     if (playersData[name].vote) {
       socket.emit("alreadyVoted", { votedName: playersData[name].vote });
     }
+
+    // Jeśli gracz jest na ekranie wyników, musimy wyświetlić wyniki
+    if (room.lastResult) {
+      socket.emit("result", room.lastResult);
+      socket.emit("scores", room.scores);
+    }
   });
 
   socket.on("start", () => {
