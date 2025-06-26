@@ -161,6 +161,25 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("start", () => {
+    const room = rooms[GAME_ROOM];
+    
+    // Sprawdzamy, czy gra już wystartowała
+    if (room.started) {
+      socket.emit("error", { message: "Gra już została rozpoczęta." });
+      return;
+    }
+
+    room.started = true; // Ustawiamy stan gry na rozpoczęty
+    room.players.forEach((player) => {
+      // Aktualizujemy status każdego gracza na 'ingame' w momencie rozpoczęcia gry
+      room.playerStatus[player.name] = "ingame";
+    });
+
+    io.to(GAME_ROOM).emit("started"); // Powiadamiamy wszystkich graczy, że gra się rozpoczęła
+    sendNewRound();  // Rozpoczynamy nową rundę
+  });
+
   socket.on("vote", (votedName) => {  
     const room = rooms[GAME_ROOM];
     const playerName = room.players.find(p => p.id === socket.id).name;
