@@ -138,7 +138,7 @@ io.on("connection", (socket) => {
 
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
-      existingPlayer.id = socket.id; // Aktualizacja ID
+      existingPlayer.id = socket.id;
     } else {
       room.players.push({ id: socket.id, name });
     }
@@ -147,7 +147,6 @@ io.on("connection", (socket) => {
     room.scores[socket.id] = room.scores[socket.id] || 0;
     sendPlayersList();
 
-    // Jeśli gra już trwa, ustawiamy status gracza
     if (room.started) {
       socket.emit("started");
       const currentWord = room.playerRoles[name] || room.currentWord;
