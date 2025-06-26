@@ -15,30 +15,47 @@ function App() {
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
-  const [playerState, setPlayerState] = useState(""); // Stan gracza
-  const [waitingForOtherPlayers, setWaitingForOtherPlayers] = useState(false); // Czekanie na innych graczy
 
   const socketRef = useRef(null);
 
   useEffect(() => {
+    // Initialize the socket connection
     socketRef.current = io("https://imposter-014f.onrender.com", {
-      autoConnect: false
+      autoConnect: false,
+      pingTimeout: 30000,  // Timeout ping
+      pingInterval: 10000,  // Czas między pingami
     });
 
     const socket = socketRef.current;
 
+    socket.on("connect", () => {
+      console.log("Połączono z serwerem.");
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Rozłączono z serwerem.");
+      setError("Połączenie z serwerem zostało przerwane.");
+    });
+
+    socket.on("reconnect", () => {
+      console.log("Ponowne połączenie z serwerem.");
+      setError(null);
+    });
+
+    socket.on("reconnect_error", () => {
+      console.log("Błąd ponownego połączenia.");
+    });
+
     socket.on("players", setPlayers);
-    socket.on("round", ({ word, remaining, playerState }) => {
+    socket.on("round", ({ word, remaining }) => {
       setWord(word);
       setRemaining(remaining);
       setVoted(false);
       setResult(null);
-      setPlayerState(playerState);  // Ustawiamy stan gracza
-      setWaitingForOtherPlayers(playerState === "before_vote"); // Jeśli gracz jest przed głosowaniem, czeka na innych
     });
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
-    socket.on("joined", ({ currentWord, playerState }) => {
+    socket.on("joined", ({ currentWord }) => {
       if (currentWord) {
         setWord(currentWord);
         setStep("game");
@@ -46,11 +63,6 @@ function App() {
       } else {
         setStep("game");
       }
-      setPlayerState(playerState); // Ustawiamy stan gracza przy dołączeniu
-      setWaitingForOtherPlayers(playerState === "before_vote"); // Ustawiamy stan oczekiwania
-    });
-    socket.on("voted", ({ voted }) => {
-      setVoted(voted);  // Sprawdzamy, czy gracz zagłosował
     });
     socket.on("error", (err) => {
       setError(err.message);
@@ -60,12 +72,22 @@ function App() {
     socket.on("result", setResult);
 
     socket.connect();
-    return () => socket.disconnect();
+
+    // Wysyłaj zapytanie o status co minutę
+    const checkGameStatus = setInterval(() => {
+      socket.emit("checkStatus");  // Zapytanie o status gry
+    }, 60000); // Co minutę
+
+    return () => {
+      clearInterval(checkGameStatus);  // Czyszczenie interwału
+      socket.disconnect();
+    };
   }, []);
 
+  // Zmienianie klasy w html oraz body w zależności od wybranego trybu
   useEffect(() => {
-    document.body.className = theme;
-    document.documentElement.className = theme;
+    document.body.className = theme;  // Zmiana klasy w body
+    document.documentElement.className = theme;  // Zmiana klasy w html
   }, [theme]);
 
   const joinRoom = () => {
@@ -81,7 +103,7 @@ function App() {
   };
 
   const voteImposter = (id) => {
-    if (!voted && playerState !== "voted" && !waitingForOtherPlayers) {  // Sprawdzamy, czy gracz może głosować
+    if (!voted) {
       socketRef.current.emit("vote", id);
       setVoted(true);
     }
@@ -155,7 +177,7 @@ function App() {
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started && playerState === "before_vote" && !voted && !result && p.id !== socketRef.current.id && (
+                    {started && !voted && !result && p.id !== socketRef.current.id && (
                       <button className="vote-btn" onClick={() => voteImposter(p.id)}>
                         Głosuj
                       </button>
@@ -166,20 +188,6 @@ function App() {
                       ) && (
                         <em className="voted-note">Zagłosowałeś na {p.name}</em>
                       )}
-                    {waitingForOtherPlayers && (
-                      <p className="voted-note">Czekamy na pozostałych graczy...</p> // Informacja, że gracz czeka
-                    )}
-                    {playerState === "voted" && (
-                      <p className="voted-note">Już zagłosowałeś!</p> // Po głosowaniu
-                    )}
-                    {playerState === "after_vote" && !showResults && (
-                      <p className="voted-note">Czekamy na wyniki...</p> // Po zakończeniu głosowania
-                    )}
-                    {showResults && (
-                      <button className="btn" onClick={nextRound}>
-                        Kolejna runda
-                      </button>
-                    )}
                   </div>
                 </li>
               ))}
@@ -229,6 +237,9 @@ function App() {
                       })}
                     </tbody>
                   </table>
+                  <button className="btn" onClick={nextRound}>
+                    Kolejna runda
+                  </button>
                 </div>
               )}
 
