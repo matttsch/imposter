@@ -15,36 +15,16 @@ function App() {
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
+  const [votedAlready, setVotedAlready] = useState(false);  // Dodajemy stan do śledzenia, czy gracz już zagłosował
 
   const socketRef = useRef(null);
 
   useEffect(() => {
-    // Initialize the socket connection
     socketRef.current = io("https://imposter-014f.onrender.com", {
-      autoConnect: false,
-      pingTimeout: 30000,  // Timeout ping
-      pingInterval: 10000,  // Czas między pingami
+      autoConnect: false
     });
 
     const socket = socketRef.current;
-
-    socket.on("connect", () => {
-      console.log("Połączono z serwerem.");
-    });
-
-    socket.on("disconnect", () => {
-      console.log("Rozłączono z serwerem.");
-      setError("Połączenie z serwerem zostało przerwane.");
-    });
-
-    socket.on("reconnect", () => {
-      console.log("Ponowne połączenie z serwerem.");
-      setError(null);
-    });
-
-    socket.on("reconnect_error", () => {
-      console.log("Błąd ponownego połączenia.");
-    });
 
     socket.on("players", setPlayers);
     socket.on("round", ({ word, remaining }) => {
@@ -64,6 +44,9 @@ function App() {
         setStep("game");
       }
     });
+    socket.on("voted", ({ voted }) => {
+      setVotedAlready(voted); // Ustawiamy, czy gracz już zagłosował
+    });
     socket.on("error", (err) => {
       setError(err.message);
       setStep("code");
@@ -72,22 +55,12 @@ function App() {
     socket.on("result", setResult);
 
     socket.connect();
-
-    // Wysyłaj zapytanie o status co minutę
-    const checkGameStatus = setInterval(() => {
-      socket.emit("checkStatus");  // Zapytanie o status gry
-    }, 60000); // Co minutę
-
-    return () => {
-      clearInterval(checkGameStatus);  // Czyszczenie interwału
-      socket.disconnect();
-    };
+    return () => socket.disconnect();
   }, []);
 
-  // Zmienianie klasy w html oraz body w zależności od wybranego trybu
   useEffect(() => {
-    document.body.className = theme;  // Zmiana klasy w body
-    document.documentElement.className = theme;  // Zmiana klasy w html
+    document.body.className = theme;
+    document.documentElement.className = theme;
   }, [theme]);
 
   const joinRoom = () => {
@@ -103,7 +76,7 @@ function App() {
   };
 
   const voteImposter = (id) => {
-    if (!voted) {
+    if (!voted && !votedAlready) {  // Sprawdzamy, czy gracz nie zagłosował już wcześniej
       socketRef.current.emit("vote", id);
       setVoted(true);
     }
@@ -188,6 +161,9 @@ function App() {
                       ) && (
                         <em className="voted-note">Zagłosowałeś na {p.name}</em>
                       )}
+                    {votedAlready && (
+                      <p className="voted-note">Już zagłosowałeś!</p> // Wyświetlamy, że gracz już zagłosował
+                    )}
                   </div>
                 </li>
               ))}
