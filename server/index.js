@@ -143,14 +143,13 @@ io.on("connection", (socket) => {
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
       socket.emit("joined", { currentWord: actualWord });
 
-      // Wysyłamy status gracza
       const playerStatus = room.playerStatuses[socket.id] || "ingame"; 
       socket.emit("playerStatus", { status: playerStatus });
     } else {
       socket.emit("joined", {});
     }
 
-    room.playerStatuses[socket.id] = "ingame";  // Ustawiamy status gracza na "ingame"
+    room.playerStatuses[socket.id] = "ingame"; 
   });
 
   socket.on("start", () => {
