@@ -33,7 +33,7 @@ const rooms = {
   [GAME_ROOM]: {
     players: [],
     started: false,
-    votes: {},
+    votes: {}, // Głosy przechowywane z imionami graczy
     scores: {},
     imposterIndex: null,
     voteHistory: [],
