@@ -124,34 +124,10 @@ async function sendNewRound() {
 io.on("connection", (socket) => {
   console.log(`Gracz połączony: ${socket.id}`);
 
-  // Reconnect: Sprawdzamy, czy gracz już istnieje po reconnect
-  socket.on("reconnect", () => {
-    const room = rooms[GAME_ROOM];
-    const playerName = Object.keys(playersData).find(name => playersData[name].id === socket.id);
-    
-    if (playerName) {
-      console.log(`Gracz połączony: ${socket.id}, Imię: ${playerName}, Status: ${playersData[playerName].status}`);
-      socket.emit("reconnect", {
-        playerStatus: playersData[playerName].status,
-        playerVote: playersData[playerName].vote,
-        scores: room.scores
-      });
-    } else {
-      console.log(`Nowy gracz połączony: ${socket.id}`);
-    }
-  });
-
-  socket.on("checkStatus", () => {
-    const room = rooms[GAME_ROOM];
-    if (room.started) {
-      socket.emit("gameStatus", { status: "running" });
-    } else {
-      socket.emit("gameStatus", { status: "stopped" });
-    }
-  });
-
+  // Przyłączanie gracza
   socket.on("join", ({ code, name }) => {
     const room = rooms[GAME_ROOM];
+
     if (code !== ACCESS_CODE) {
       socket.emit("error", { message: "Nieprawidłowy kod dostępu." });
       return;
@@ -160,17 +136,24 @@ io.on("connection", (socket) => {
     // Sprawdzamy, czy gracz o danym imieniu już istnieje w pokoju
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
-      existingPlayer.id = socket.id;  // Zaktualizowanie ID
+      // Gracz już istnieje - przypisujemy mu nowe socket.id
+      existingPlayer.id = socket.id;
+      console.log(`Gracz z imieniem ${name} dołączył ponownie. Nowe socket.id: ${socket.id}`);
     } else {
+      // Gracz nie istnieje - traktujemy go jako nowego
       room.players.push({ id: socket.id, name });
+      console.log(`Nowy gracz połączony: ${socket.id}, Imię: ${name}`);
     }
+
+    // Zachowanie danych gracza (np. status, głos)
+    playersData[name] = playersData[name] || { id: socket.id, status: "ingame", vote: null };
 
     socket.join(GAME_ROOM);
     room.scores[name] = room.scores[name] || 0;
-    room.playerStatus[name] = room.playerStatus[name] || "ingame";  // Przypisujemy domyślny status "ingame"
-    playersData[name] = { id: socket.id, status: room.playerStatus[name], vote: null }; // Dodajemy dane gracza
+    room.playerStatus[name] = room.playerStatus[name] || "ingame";
     sendPlayersList();
 
+    // Jeśli gra już się rozpoczęła, wysyłamy odpowiedni stan gry
     if (room.started) {
       socket.emit("started");
       const currentWord = room.playerRoles[name] || room.currentWord;
