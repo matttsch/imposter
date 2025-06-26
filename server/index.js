@@ -58,13 +58,13 @@ function sendPlayersList() {
 }
 
 // Funkcja do obliczania pozostałych słów
-function getRemainingWordsCount() {
+async function getRemainingWordsCount() {
   const room = rooms[GAME_ROOM];
   const database = client.db('imposter_game');
   const wordsCollection = database.collection('used_words');
 
   // Pobieranie liczby słów w kolekcji MongoDB
-  const usedWordsCount = wordsCollection.countDocuments();  // Metoda do zliczania dokumentów w kolekcji
+  const usedWordsCount = await wordsCollection.countDocuments();  // Metoda do zliczania dokumentów w kolekcji
 
   // Liczba słów w pliku - liczba słów w kolekcji
   const remainingWordsCount = nouns.length - usedWordsCount;
@@ -108,6 +108,9 @@ async function sendNewRound() {
       // Losowanie impostera
       room.imposterIndex = Math.floor(Math.random() * players.length);  // Losowanie indeksu impostera
 
+      // Obliczenie liczby pozostałych słów
+      const remainingWords = await getRemainingWordsCount();  // Czekamy na wynik obliczeń
+
       players.forEach((player, i) => {
         const isImposter = i === room.imposterIndex;
         const role = isImposter ? "IMPOSTER" : word;
@@ -115,7 +118,7 @@ async function sendNewRound() {
         room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi na podstawie jego imienia
         io.to(player.id).emit("round", {
           word: role,
-          remaining: getRemainingWordsCount() // Licznik pozostałych słów (teraz synchroniczny)
+          remaining: remainingWords // Liczba pozostałych słów
         });
       });
     }
