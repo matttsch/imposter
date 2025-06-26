@@ -15,7 +15,8 @@ function App() {
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
-  const [playerStatus, setPlayerStatus] = useState(null);  // Status gracza
+  const [playerStatus, setPlayerStatus] = useState(null);
+  const [votedPlayer, setVotedPlayer] = useState(null);  // Player who the user voted for
 
   const socketRef = useRef(null);
 
@@ -30,6 +31,11 @@ function App() {
 
     socket.on("connect", () => {
       console.log("Połączono z serwerem.");
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Rozłączono z serwerem.");
+      setError("Połączenie z serwerem zostało przerwane.");
     });
 
     socket.on("reconnect", () => {
@@ -62,17 +68,10 @@ function App() {
     socket.on("scores", setScores);
     socket.on("result", setResult);
 
-    // Nasłuchujemy na komunikat o reconnect
-    socket.on("reconnect", ({ playerStatus, scores }) => {
-      setPlayerStatus(playerStatus);
-      setScores(scores);
-      if (playerStatus === "voted") {
-        setStep("voted");
-      } else if (playerStatus === "result") {
-        setStep("result");
-      } else {
-        setStep("ingame");
-      }
+    // Nowe: Odbieramy informację, jeśli gracz już zagłosował
+    socket.on("alreadyVoted", ({ votedName }) => {
+      setVotedPlayer(votedName); // Przechowujemy nazwisko gracza, na którego zagłosowano
+      setVoted(true); // Zmieniamy status na "zagłosował"
     });
 
     socket.connect();
@@ -170,16 +169,19 @@ function App() {
                   </div>
                   <div className="player-actions">
                     {started && !voted && !result && p.name !== name && (
-                      <button className="vote-btn" onClick={() => voteImposter(p.name)}>
+                      <button
+                        className="vote-btn"
+                        onClick={() => voteImposter(p.name)}
+                      >
                         Głosuj
                       </button>
                     )}
-                    {voted &&
-                      result?.voteHistory.some(
-                        (v) => v.from === name && v.to === p.name
-                      ) && (
-                        <em className="voted-note">Zagłosowałeś na {p.name}</em>
-                      )}
+                    {voted && votedPlayer === p.name && (
+                      <em className="voted-note">Zagłosowałeś na {p.name}</em>
+                    )}
+                    {voted && !result && (
+                      <em className="waiting-note">Czekamy na pozostałych graczy...</em>
+                    )}
                   </div>
                 </li>
               ))}
