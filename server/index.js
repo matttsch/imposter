@@ -61,55 +61,34 @@ function sendNewRound() {
   const room = rooms[GAME_ROOM];
   const players = room.players;
 
-  let word;
-  
-  // Funkcja losująca słowo i sprawdzająca, czy jest już w kolekcji
-  async function getUniqueWord() {
-    const availableWords = nouns.filter(w => !room.usedWords.has(w));
-    if (availableWords.length === 0) {
-      io.to(GAME_ROOM).emit("error", { message: "Skończyły się słowa!" });
-      return;
-    }
-
-    // Losowanie słowa
-    word = availableWords[Math.floor(Math.random() * availableWords.length)];
-
-    // Połączenie z MongoDB i sprawdzenie, czy słowo już istnieje w kolekcji
-    const database = client.db('imposter_game');
-    const wordsCollection = database.collection('used_words');
-    
-    // Sprawdzanie, czy słowo już jest w bazie danych
-    const existingWord = await wordsCollection.findOne({ word: word });
-    
-    // Jeśli słowo już jest w bazie danych, losujemy inne
-    if (existingWord) {
-      console.log(`Słowo ${word} już istnieje w bazie danych. Losowanie nowego...`);
-      await getUniqueWord();
-    } else {
-      // Jeśli słowo nie istnieje, dodajemy je do bazy danych i do użytych słów
-      await wordsCollection.insertOne({ word: word });
-      room.usedWords.add(word);
-      room.currentWord = word;
-      room.votes = {};
-      room.voteHistory = [];
-      room.lastResult = null;
-      room.currentMap = {};
-      
-      players.forEach((player, i) => {
-        const isImposter = i === room.imposterIndex;
-        const toSend = isImposter ? "IMPOSTER" : word;
-        room.currentMap[player.id] = toSend;
-        room.playerRoles[player.name] = toSend;
-        io.to(player.id).emit("round", {
-          word: toSend,
-          remaining: nouns.length - room.usedWords.size
-        });
-      });
-    }
+  const availableWords = nouns.filter(w => !room.usedWords.has(w));
+  if (availableWords.length === 0) {
+    io.to(GAME_ROOM).emit("error", { message: "Skończyły się słowa!" });
+    return;
   }
 
-  // Uruchomienie funkcji sprawdzającej unikalność słowa
-  getUniqueWord().catch(console.error);
+  const word = availableWords[Math.floor(Math.random() * availableWords.length)];
+  room.usedWords.add(word);
+  room.currentWord = word;
+  room.votes = {};
+  room.voteHistory = [];
+  room.lastResult = null;
+  room.currentMap = {};
+  room.playerRoles = {};  // Reset ról graczy
+
+  // Losowanie impostera
+  room.imposterIndex = Math.floor(Math.random() * players.length);
+
+  players.forEach((player, i) => {
+    const isImposter = i === room.imposterIndex;
+    const role = isImposter ? "IMPOSTER" : word;
+    room.currentMap[player.id] = role;
+    room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi na podstawie jego imienia
+    io.to(player.id).emit("round", {
+      word: role,
+      remaining: nouns.length - room.usedWords.size
+    });
+  });
 }
 
 io.on("connection", (socket) => {
