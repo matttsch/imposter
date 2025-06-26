@@ -41,7 +41,8 @@ const rooms = {
     usedWords: new Set(),
     currentWord: null,
     currentMap: {},
-    playerRoles: {}
+    playerRoles: {},
+    playerStatuses: {} // Dodany obiekt do przechowywania statusów graczy
   }
 };
 
@@ -116,6 +117,7 @@ async function sendNewRound() {
         const role = isImposter ? "IMPOSTER" : word;
         room.currentMap[player.id] = role;
         room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi na podstawie jego imienia
+        room.playerStatuses[player.id] = "ingame";  // Gracz wchodzi do gry i ma status "ingame"
         io.to(player.id).emit("round", {
           word: role,
           remaining: remainingWords // Liczba pozostałych słów
@@ -171,6 +173,9 @@ io.on("connection", (socket) => {
     } else {
       socket.emit("joined", {});
     }
+
+    // Ustawienie statusu gracza na "ingame"
+    room.playerStatuses[socket.id] = "ingame"; 
   });
 
   socket.on("start", () => {
@@ -191,6 +196,8 @@ io.on("connection", (socket) => {
 
     room.votes[socket.id] = votedId;
     room.voteHistory.push({ from: socket.id, to: votedId });
+
+    room.playerStatuses[socket.id] = "voted"; // Po zagłosowaniu ustawiamy status na "voted"
 
     const totalVotes = Object.keys(room.votes).length;
     const totalPlayers = room.players.length;
@@ -229,6 +236,9 @@ io.on("connection", (socket) => {
         })
       };
 
+      room.playerStatuses = {};  // Resetujemy statusy po zakończeniu głosowania
+      room.players.forEach(player => room.playerStatuses[player.id] = "result");
+
       io.to(GAME_ROOM).emit("result", room.lastResult);
       io.to(GAME_ROOM).emit("scores", room.scores);
     }
@@ -258,7 +268,8 @@ io.on("connection", (socket) => {
       usedWords: new Set(),
       currentWord: null,
       currentMap: {},
-      playerRoles: {}
+      playerRoles: {},
+      playerStatuses: {}
     };
     io.to(GAME_ROOM).emit("ended");
   });
