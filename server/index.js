@@ -123,6 +123,7 @@ async function sendNewRound() {
 io.on("connection", (socket) => {
   console.log(`Gracz połączony: ${socket.id}`);
 
+  // Sprawdzanie statusu gry
   socket.on("checkStatus", () => {
     const room = rooms[GAME_ROOM];
     if (room.started) {
@@ -132,6 +133,20 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Dodajemy obsługę reconnectu
+  socket.on("reconnect", () => {
+    const room = rooms[GAME_ROOM];
+    const playerName = room.players.find(p => p.id === socket.id)?.name;
+
+    // Jeśli gracz ma zapisany status, przywracamy go
+    if (playerName) {
+      const playerStatus = room.playerStatus[playerName];
+      const playerVote = room.votes[playerName];
+      socket.emit("reconnect", { playerStatus, playerVote, scores: room.scores });
+    }
+  });
+
+  // Łączenie gracza do pokoju
   socket.on("join", ({ code, name }) => {
     const room = rooms[GAME_ROOM];
     if (code !== ACCESS_CODE) {
@@ -147,7 +162,7 @@ io.on("connection", (socket) => {
     }
 
     socket.join(GAME_ROOM);
-    room.scores[name] = room.scores[name] || 0;  
+    room.scores[name] = room.scores[name] || 0;
     room.playerStatus[name] = room.playerStatus[name] || "ingame";  // Przypisujemy domyślny status "ingame"
     sendPlayersList();
 
@@ -164,20 +179,18 @@ io.on("connection", (socket) => {
   socket.on("start", () => {
     const room = rooms[GAME_ROOM];
     
-    // Sprawdzamy, czy gra już wystartowała
     if (room.started) {
       socket.emit("error", { message: "Gra już została rozpoczęta." });
       return;
     }
 
-    room.started = true; // Ustawiamy stan gry na rozpoczęty
+    room.started = true;
     room.players.forEach((player) => {
-      // Aktualizujemy status każdego gracza na 'ingame' w momencie rozpoczęcia gry
       room.playerStatus[player.name] = "ingame";
     });
 
-    io.to(GAME_ROOM).emit("started"); // Powiadamiamy wszystkich graczy, że gra się rozpoczęła
-    sendNewRound();  // Rozpoczynamy nową rundę
+    io.to(GAME_ROOM).emit("started");
+    sendNewRound();
   });
 
   socket.on("vote", (votedName) => {  
@@ -187,7 +200,7 @@ io.on("connection", (socket) => {
     room.votes[playerName] = { votedName, playerName };
     room.voteHistory.push({ from: playerName, to: votedName, playerName });
 
-    room.playerStatus[playerName] = "voted";  // Ustawiamy status gracza na 'voted'
+    room.playerStatus[playerName] = "voted";
 
     const totalVotes = Object.keys(room.votes).length;
     const totalPlayers = room.players.length;
@@ -275,17 +288,6 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     // nie usuwamy z players, bo reconnect
-  });
-
-  socket.on("reconnect", () => {
-    console.log(`Gracz po reconnect: ${socket.id}`);
-
-    const room = rooms[GAME_ROOM];
-    const playerName = room.players.find(p => p.id === socket.id).name;
-    const playerStatus = room.playerStatus[playerName];
-
-    // Po reconnectcie gracz otrzymuje swój status
-    socket.emit("reconnect", { playerStatus, scores: room.scores, playerName });
   });
 });
 
