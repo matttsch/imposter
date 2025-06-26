@@ -28,6 +28,20 @@ function App() {
 
     const socket = socketRef.current;
 
+    socket.on("connect", () => {
+      console.log("Połączono z serwerem.");
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Rozłączono z serwerem.");
+      setError("Połączenie z serwerem zostało przerwane.");
+    });
+
+    socket.on("reconnect", () => {
+      console.log("Ponowne połączenie z serwerem.");
+      setError(null);
+    });
+
     socket.on("players", setPlayers);
     socket.on("round", ({ word, remaining }) => {
       setWord(word);
@@ -35,11 +49,10 @@ function App() {
       setVoted(false);
       setResult(null);
     });
-
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
     socket.on("joined", ({ currentWord }) => {
-      setPlayerState("ingame"); // Gracz wchodzi do gry
+      setPlayerState("ingame");  // Gracz wchodzi do gry
       if (currentWord) {
         setWord(currentWord);
         setStep("game");
@@ -48,6 +61,12 @@ function App() {
         setStep("game");
       }
     });
+
+    // Obsługuje status gracza po reconnect
+    socket.on("playerStatus", ({ status }) => {
+      setPlayerState(status);  // Odbieramy status gracza z serwera
+    });
+
     socket.on("error", (err) => {
       setError(err.message);
       setStep("code");
