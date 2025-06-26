@@ -3,6 +3,11 @@ const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
 const cors = require("cors");
+const { MongoClient } = require('mongodb');
+
+// MongoDB URI i konfiguracja klienta
+const uri = "mongodb+srv://sznamat:TOLVg49ciOvCRMoy@cluster0.mongodb.net/imposter_game?retryWrites=true&w=majority";
+const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
 const app = express();
 app.use(cors());
@@ -10,8 +15,8 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: { origin: "*" },
-  pingTimeout: 30000,  // Timeout ping
-  pingInterval: 10000,  // Czas między pingami
+  pingTimeout: 30000,
+  pingInterval: 10000,
 });
 
 const PORT = process.env.PORT || 3001;
@@ -29,8 +34,8 @@ const rooms = {
     lastResult: null,
     usedWords: new Set(),
     currentWord: null,
-    currentMap: {},  // { id: "word" | "IMPOSTER" }
-    playerRoles: {}  // { name: "word" | "IMPOSTER" }
+    currentMap: {},
+    playerRoles: {}
   }
 };
 
@@ -49,33 +54,55 @@ function sendNewRound() {
   const room = rooms[GAME_ROOM];
   const players = room.players;
 
-  const availableWords = nouns.filter(w => !room.usedWords.has(w));
-  if (availableWords.length === 0) {
-    io.to(GAME_ROOM).emit("error", { message: "Skończyły się słowa!" });
-    return;
+  let word;
+  
+  // Funkcja losująca słowo i sprawdzająca, czy jest już w kolekcji
+  async function getUniqueWord() {
+    const availableWords = nouns.filter(w => !room.usedWords.has(w));
+    if (availableWords.length === 0) {
+      io.to(GAME_ROOM).emit("error", { message: "Skończyły się słowa!" });
+      return;
+    }
+
+    // Losowanie słowa
+    word = availableWords[Math.floor(Math.random() * availableWords.length)];
+
+    // Połączenie z MongoDB i sprawdzenie, czy słowo już istnieje w kolekcji
+    const database = client.db('imposter_game');
+    const wordsCollection = database.collection('used_words');
+    
+    // Sprawdzanie, czy słowo już istnieje w bazie danych
+    const existingWord = await wordsCollection.findOne({ word: word });
+    
+    // Jeśli słowo już jest w bazie danych, losujemy inne
+    if (existingWord) {
+      console.log(`Słowo ${word} już istnieje w bazie danych. Losowanie nowego...`);
+      await getUniqueWord();
+    } else {
+      // Jeśli słowo nie istnieje, dodajemy je do bazy danych i do użytych słów
+      await wordsCollection.insertOne({ word: word });
+      room.usedWords.add(word);
+      room.currentWord = word;
+      room.votes = {};
+      room.voteHistory = [];
+      room.lastResult = null;
+      room.currentMap = {};
+      
+      players.forEach((player, i) => {
+        const isImposter = i === room.imposterIndex;
+        const toSend = isImposter ? "IMPOSTER" : word;
+        room.currentMap[player.id] = toSend;
+        room.playerRoles[player.name] = toSend;
+        io.to(player.id).emit("round", {
+          word: toSend,
+          remaining: nouns.length - room.usedWords.size
+        });
+      });
+    }
   }
 
-  const word = availableWords[Math.floor(Math.random() * availableWords.length)];
-  room.usedWords.add(word);
-  room.currentWord = word;
-  room.votes = {};
-  room.voteHistory = [];
-  room.lastResult = null;
-  room.currentMap = {};
-  room.playerRoles = {};  // Reset ról graczy
-
-  room.imposterIndex = Math.floor(Math.random() * players.length);
-
-  players.forEach((player, i) => {
-    const isImposter = i === room.imposterIndex;
-    const role = isImposter ? "IMPOSTER" : word;
-    room.currentMap[player.id] = role;
-    room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi na podstawie jego imienia
-    io.to(player.id).emit("round", {
-      word: role,
-      remaining: nouns.length - room.usedWords.size
-    });
-  });
+  // Uruchomienie funkcji sprawdzającej unikalność słowa
+  getUniqueWord().catch(console.error);
 }
 
 io.on("connection", (socket) => {
@@ -208,7 +235,7 @@ io.on("connection", (socket) => {
       usedWords: new Set(),
       currentWord: null,
       currentMap: {},
-      playerRoles: {}  // Reset player roles when the game ends
+      playerRoles: {}
     };
     io.to(GAME_ROOM).emit("ended");
   });
@@ -227,4 +254,9 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+client.connect()
+  .then(() => {
+    console.log("Połączono z MongoDB!");
+    server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+  })
+  .catch(console.error);
