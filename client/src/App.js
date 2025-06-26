@@ -17,7 +17,6 @@ function App() {
   const [remaining, setRemaining] = useState(null);
   const [playerState, setPlayerState] = useState(""); // Stan gracza
   const [waitingForOtherPlayers, setWaitingForOtherPlayers] = useState(false); // Czekanie na innych graczy
-  const [showResults, setShowResults] = useState(false);  // Pokazuje wyniki dopiero po zakończeniu głosowania
 
   const socketRef = useRef(null);
 
