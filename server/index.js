@@ -41,7 +41,7 @@ const rooms = {
     usedWords: new Set(),
     currentWord: null,
     currentMap: {},
-    playerRoles: {}
+    playerRoles: {}  // Trzymamy również status w playerRoles
   }
 };
 
@@ -103,8 +103,7 @@ async function sendNewRound() {
         const isImposter = i === room.imposterIndex;
         const role = isImposter ? "IMPOSTER" : word;
         room.currentMap[player.id] = role;
-        room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi
-        player.status = "ingame"; // Ustawiamy status "ingame" dla gracza
+        room.playerRoles[player.name] = { role, status: "ingame" };  // Przypisujemy rolę graczowi z "ingame"
         io.to(player.id).emit("round", {
           word: role,
           remaining: remainingWords
@@ -135,13 +134,20 @@ io.on("connection", (socket) => {
       return;
     }
 
+    // Jeżeli gracz jest już w grze, zachowujemy jego status (ingame, voted, result)
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
-      existingPlayer.id = socket.id;  // Przypisanie ID gracza, który robi reconnect
-      socket.emit("joined", { currentWord: room.currentMap[existingPlayer.id], status: existingPlayer.status });
+      existingPlayer.id = socket.id; // Ponowne przypisanie ID
+      socket.emit("joined", {
+        currentWord: room.currentMap[existingPlayer.id],
+        status: room.playerRoles[existingPlayer.name]?.status || "ingame"
+      });
     } else {
-      room.players.push({ id: socket.id, name, status: "ingame" });  // Nowy gracz dołącza z domyślnym statusem "ingame"
-      socket.emit("joined", { currentWord: room.currentMap[socket.id], status: "ingame" });
+      room.players.push({ id: socket.id, name, status: "ingame" });  // Nowy gracz dołącza
+      socket.emit("joined", {
+        currentWord: room.currentMap[socket.id],
+        status: "ingame"
+      });
     }
 
     socket.join(GAME_ROOM);
