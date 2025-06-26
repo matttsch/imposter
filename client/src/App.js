@@ -17,6 +17,7 @@ function App() {
   const [remaining, setRemaining] = useState(null);
   const [playerState, setPlayerState] = useState(""); // Stan gracza
   const [waitingForOtherPlayers, setWaitingForOtherPlayers] = useState(false); // Czekanie na innych graczy
+  const [showResults, setShowResults] = useState(false);  // Pokazuje wyniki dopiero po zakończeniu głosowania
 
   const socketRef = useRef(null);
 
@@ -172,8 +173,13 @@ function App() {
                     {playerState === "voted" && (
                       <p className="voted-note">Już zagłosowałeś!</p> // Po głosowaniu
                     )}
-                    {playerState === "after_vote" && (
+                    {playerState === "after_vote" && !showResults && (
                       <p className="voted-note">Czekamy na wyniki...</p> // Po zakończeniu głosowania
+                    )}
+                    {showResults && (
+                      <button className="btn" onClick={nextRound}>
+                        Kolejna runda
+                      </button>
                     )}
                   </div>
                 </li>
@@ -224,9 +230,6 @@ function App() {
                       })}
                     </tbody>
                   </table>
-                  <button className="btn" onClick={nextRound}>
-                    Kolejna runda
-                  </button>
                 </div>
               )}
 
