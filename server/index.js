@@ -1,5 +1,3 @@
-require('dotenv').config();  // Załaduj zmienne środowiskowe
-
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -7,8 +5,9 @@ const fs = require("fs");
 const cors = require("cors");
 const { MongoClient } = require('mongodb');
 
-// MongoDB URI z zmiennych środowiskowych
-const uri = process.env.MONGODB_URI;
+// Uzyskaj URI połączenia z MongoDB z zmiennej środowiskowej
+const uri = process.env.MONGODB_URI;  // Render automatycznie załaduje zmienną środowiskową
+
 const client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true });
 
 const app = express();
