@@ -39,7 +39,7 @@ const rooms = {
     currentWord: null,
     currentMap: {},
     playerRoles: {},
-    playerStatuses: {}  // Dodajemy obiekt do przechowywania statusów graczy
+    playerStatuses: {}  // Przechowywanie statusów graczy
   }
 };
 
@@ -98,7 +98,7 @@ async function sendNewRound() {
         const role = isImposter ? "IMPOSTER" : word;
         room.currentMap[player.id] = role;
         room.playerRoles[player.name] = role;
-        room.playerStatuses[player.id] = "ingame";  // Ustawiamy status na "ingame" po dołączeniu do gry
+        room.playerStatuses[player.id] = "ingame";  // Ustawiamy status gracza na "ingame"
         io.to(player.id).emit("round", { word: role, remaining: remainingWords });
       });
     }
@@ -109,6 +109,15 @@ async function sendNewRound() {
 
 io.on("connection", (socket) => {
   console.log(`Gracz połączony: ${socket.id}`);
+
+  socket.on("checkStatus", () => {
+    const room = rooms[GAME_ROOM];
+    if (room.started) {
+      socket.emit("gameStatus", { status: "running" });
+    } else {
+      socket.emit("gameStatus", { status: "stopped" });
+    }
+  });
 
   socket.on("join", ({ code, name }) => {
     const room = rooms[GAME_ROOM];
@@ -133,11 +142,15 @@ io.on("connection", (socket) => {
       const currentWord = room.playerRoles[name] || room.currentWord;
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
       socket.emit("joined", { currentWord: actualWord });
+
+      // Wysyłamy status gracza
+      const playerStatus = room.playerStatuses[socket.id] || "ingame"; 
+      socket.emit("playerStatus", { status: playerStatus });
     } else {
       socket.emit("joined", {});
     }
 
-    room.playerStatuses[socket.id] = "ingame";  // Ustawiamy status gracza na "ingame" po dołączeniu
+    room.playerStatuses[socket.id] = "ingame";  // Ustawiamy status gracza na "ingame"
   });
 
   socket.on("start", () => {
@@ -198,7 +211,7 @@ io.on("connection", (socket) => {
         })
       };
 
-      room.playerStatuses = {};  // Resetujemy statusy po zakończeniu głosowania
+      room.playerStatuses = {}; 
       room.players.forEach(player => room.playerStatuses[player.id] = "result");
 
       io.to(GAME_ROOM).emit("result", room.lastResult);
