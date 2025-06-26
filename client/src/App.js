@@ -16,6 +16,7 @@ function App() {
   const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
   const [playerState, setPlayerState] = useState(""); // Stan gracza
+  const [waitingForOtherPlayers, setWaitingForOtherPlayers] = useState(false); // Czekanie na innych graczy
 
   const socketRef = useRef(null);
 
@@ -33,6 +34,7 @@ function App() {
       setVoted(false);
       setResult(null);
       setPlayerState(playerState);  // Ustawiamy stan gracza
+      setWaitingForOtherPlayers(playerState === "before_vote"); // Jeśli gracz jest przed głosowaniem, czeka na innych
     });
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
@@ -45,6 +47,7 @@ function App() {
         setStep("game");
       }
       setPlayerState(playerState); // Ustawiamy stan gracza przy dołączeniu
+      setWaitingForOtherPlayers(playerState === "before_vote"); // Ustawiamy stan oczekiwania
     });
     socket.on("voted", ({ voted }) => {
       setVoted(voted);  // Sprawdzamy, czy gracz zagłosował
@@ -78,7 +81,7 @@ function App() {
   };
 
   const voteImposter = (id) => {
-    if (!voted && playerState !== "voted") {  // Sprawdzamy, czy gracz może głosować
+    if (!voted && playerState !== "voted" && !waitingForOtherPlayers) {  // Sprawdzamy, czy gracz może głosować
       socketRef.current.emit("vote", id);
       setVoted(true);
     }
@@ -163,11 +166,8 @@ function App() {
                       ) && (
                         <em className="voted-note">Zagłosowałeś na {p.name}</em>
                       )}
-                    {playerState === "voted" && (
-                      <p className="voted-note">Już zagłosowałeś!</p> // Informacja, że gracz zagłosował
-                    )}
-                    {playerState === "after_vote" && (
-                      <p className="voted-note">Czekamy na wyniki...</p> // Po zakończeniu głosowania
+                    {waitingForOtherPlayers && (
+                      <p className="voted-note">Czekamy na pozostałych graczy...</p> // Informacja, że gracz czeka
                     )}
                   </div>
                 </li>
