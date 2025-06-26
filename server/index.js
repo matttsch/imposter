@@ -1,131 +1,7 @@
-// Zmiany w kodzie serwera (index.js)
-
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const fs = require("fs");
-const cors = require("cors");
-const { MongoClient } = require('mongodb');
-
-// MongoDB
-const uri = process.env.MONGODB_URI; 
-const client = new MongoClient(uri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  ssl: true
-});
-
-const app = express();
-app.use(cors());
-
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" },
-  pingTimeout: 30000,
-  pingInterval: 10000,
-});
-
-const PORT = process.env.PORT || 3001;
-const ACCESS_CODE = "Kebsiary14";
-const GAME_ROOM = "main-room";
-
-const rooms = {
-  [GAME_ROOM]: {
-    players: [],
-    started: false,
-    votes: {},
-    scores: {},
-    imposterIndex: null,
-    voteHistory: [],
-    lastResult: null,
-    usedWords: new Set(),
-    currentWord: null,
-    currentMap: {},
-    playerRoles: {},
-    playerStates: {}  // Stany graczy
-  }
-};
-
-let nouns = Array.from(new Set(
-  fs.readFileSync("polish_nouns.txt", "utf-8")
-    .split("\n")
-    .map(word => word.trim())
-    .filter(Boolean)
-));
-
-function sendPlayersList() {
-  io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
-}
-
-// Funkcja obliczająca pozostałe słowa
-async function getRemainingWordsCount() {
-  const room = rooms[GAME_ROOM];
-  const database = client.db('imposter_game');
-  const wordsCollection = database.collection('used_words');
-
-  const usedWordsCount = await wordsCollection.countDocuments();
-  const remainingWordsCount = nouns.length - usedWordsCount;
-  return remainingWordsCount;
-}
-
-async function sendNewRound() {
-  const room = rooms[GAME_ROOM];
-  const players = room.players;
-
-  async function getUniqueWord() {
-    const availableWords = nouns.filter(w => !room.usedWords.has(w));
-    if (availableWords.length === 0) {
-      io.to(GAME_ROOM).emit("error", { message: "Skończyły się słowa!" });
-      return;
-    }
-
-    const word = availableWords[Math.floor(Math.random() * availableWords.length)];
-
-    const database = client.db('imposter_game');
-    const wordsCollection = database.collection('used_words');
-    
-    const existingWord = await wordsCollection.findOne({ word: word });
-    
-    if (existingWord) {
-      console.log(`Słowo ${word} już istnieje w bazie danych. Losowanie nowego...`);
-      await getUniqueWord(); // Losowanie nowego słowa, jeśli już istnieje
-    } else {
-      await wordsCollection.insertOne({ word: word });
-      room.usedWords.add(word); // Dodanie słowa do użytych
-      room.currentWord = word;
-      room.votes = {};
-      room.voteHistory = [];
-      room.lastResult = null;
-      room.currentMap = {};
-      room.playerRoles = {};
-      room.playerStates = {};  // Resetujemy stany graczy
-
-      room.imposterIndex = Math.floor(Math.random() * players.length);  // Losowanie impostera
-
-      const remainingWords = await getRemainingWordsCount();
-
-      players.forEach((player, i) => {
-        const isImposter = i === room.imposterIndex;
-        const role = isImposter ? "IMPOSTER" : word;
-        room.currentMap[player.id] = role;
-        room.playerRoles[player.name] = role;
-        room.playerStates[player.id] = "before_vote";  // Stan gracza przed głosowaniem
-
-        io.to(player.id).emit("round", {
-          word: role,
-          remaining: remainingWords,
-          playerState: room.playerStates[player.id]  // Przesyłamy stan gracza
-        });
-      });
-    }
-  }
-
-  await getUniqueWord().catch(console.error);
-}
-
 io.on("connection", (socket) => {
   console.log(`Gracz połączony: ${socket.id}`);
 
+  // Sprawdzanie statusu gry
   socket.on("checkStatus", () => {
     const room = rooms[GAME_ROOM];
     if (room.started) {
@@ -153,10 +29,20 @@ io.on("connection", (socket) => {
     room.scores[socket.id] = room.scores[socket.id] || 0;
     sendPlayersList();
 
+    // Jeśli gra już się rozpoczęła, sprawdzamy stan głosowania
     if (room.started) {
       socket.emit("started");
+
+      // Jeśli gracz był impostorem lub po zakończeniu głosowania
       const currentWord = room.playerRoles[name] || room.currentWord;
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
+
+      // Jeśli gra już zakończona, wyślij tabelę wyników
+      if (room.lastResult) {
+        socket.emit("result", room.lastResult);
+        socket.emit("scores", room.scores);
+      }
+
       socket.emit("joined", { currentWord: actualWord, playerState: room.playerStates[socket.id] });
     } else {
       socket.emit("joined", {});
