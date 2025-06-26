@@ -3,6 +3,17 @@ const http = require("http");
 const { Server } = require("socket.io");
 const fs = require("fs");
 const cors = require("cors");
+const { MongoClient } = require('mongodb');
+
+// Uzyskaj URI połączenia z MongoDB z zmiennej środowiskowej
+const uri = process.env.MONGODB_URI;  // Render automatycznie załaduje zmienną środowiskową
+
+// Skonfiguruj klienta MongoDB, wymuszając połączenie SSL
+const client = new MongoClient(uri, {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  ssl: true  // Wymuś połączenie SSL
+});
 
 const app = express();
 app.use(cors());
@@ -30,11 +41,11 @@ const rooms = {
     usedWords: new Set(),
     currentWord: null,
     currentMap: {},
-    playerRoles: {},
-    playerStates: {},  // Stany graczy
+    playerRoles: {}
   }
 };
 
+// Odczyt słów z pliku
 let nouns = Array.from(new Set(
   fs.readFileSync("polish_nouns.txt", "utf-8")
     .split("\n")
@@ -46,12 +57,16 @@ function sendPlayersList() {
   io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
 }
 
+// Funkcja do obliczania pozostałych słów
 async function getRemainingWordsCount() {
   const room = rooms[GAME_ROOM];
   const database = client.db('imposter_game');
   const wordsCollection = database.collection('used_words');
 
-  const usedWordsCount = await wordsCollection.countDocuments();
+  // Pobieranie liczby słów w kolekcji MongoDB
+  const usedWordsCount = await wordsCollection.countDocuments();  // Metoda do zliczania dokumentów w kolekcji
+
+  // Liczba słów w pliku - liczba słów w kolekcji
   const remainingWordsCount = nouns.length - usedWordsCount;
   return remainingWordsCount;
 }
@@ -60,6 +75,7 @@ async function sendNewRound() {
   const room = rooms[GAME_ROOM];
   const players = room.players;
 
+  // Losowanie dostępnych słów
   async function getUniqueWord() {
     const availableWords = nouns.filter(w => !room.usedWords.has(w));
     if (availableWords.length === 0) {
@@ -72,48 +88,50 @@ async function sendNewRound() {
     const database = client.db('imposter_game');
     const wordsCollection = database.collection('used_words');
     
+    // Sprawdzanie, czy słowo już istnieje w kolekcji
     const existingWord = await wordsCollection.findOne({ word: word });
     
     if (existingWord) {
       console.log(`Słowo ${word} już istnieje w bazie danych. Losowanie nowego...`);
-      await getUniqueWord(); // Losowanie nowego słowa, jeśli już istnieje
+      await getUniqueWord(); // Jeśli słowo już istnieje, losujemy inne
     } else {
+      // Jeśli słowo nie istnieje, dodajemy je do bazy danych i do użytych słów
       await wordsCollection.insertOne({ word: word });
-      room.usedWords.add(word); // Dodanie słowa do użytych
+      room.usedWords.add(word); // Dodajemy słowo do użytych słów w pokoju
       room.currentWord = word;
       room.votes = {};
       room.voteHistory = [];
       room.lastResult = null;
       room.currentMap = {};
-      room.playerRoles = {};
-      room.playerStates = {};  // Resetujemy stany graczy
+      room.playerRoles = {}; // Resetujemy role graczy
 
-      room.imposterIndex = Math.floor(Math.random() * players.length);  // Losowanie impostera
+      // Losowanie impostera
+      room.imposterIndex = Math.floor(Math.random() * players.length);  // Losowanie indeksu impostera
 
-      const remainingWords = await getRemainingWordsCount();
+      // Obliczenie liczby pozostałych słów
+      const remainingWords = await getRemainingWordsCount();  // Czekamy na wynik obliczeń
 
       players.forEach((player, i) => {
         const isImposter = i === room.imposterIndex;
         const role = isImposter ? "IMPOSTER" : word;
         room.currentMap[player.id] = role;
-        room.playerRoles[player.name] = role;
-        room.playerStates[player.id] = "before_vote";  // Stan gracza przed głosowaniem
-
+        room.playerRoles[player.name] = role; // Przypisujemy rolę graczowi na podstawie jego imienia
         io.to(player.id).emit("round", {
           word: role,
-          remaining: remainingWords,
-          playerState: room.playerStates[player.id]  // Przesyłamy stan gracza
+          remaining: remainingWords // Liczba pozostałych słów
         });
       });
     }
   }
 
+  // Uruchomienie funkcji sprawdzającej unikalność słowa
   await getUniqueWord().catch(console.error);
 }
 
 io.on("connection", (socket) => {
   console.log(`Gracz połączony: ${socket.id}`);
 
+  // Sprawdzanie statusu gry
   socket.on("checkStatus", () => {
     const room = rooms[GAME_ROOM];
     if (room.started) {
@@ -132,7 +150,7 @@ io.on("connection", (socket) => {
 
     const existingPlayer = room.players.find(p => p.name === name);
     if (existingPlayer) {
-      existingPlayer.id = socket.id;  // aktualizacja ID
+      existingPlayer.id = socket.id; // aktualizacja ID
     } else {
       room.players.push({ id: socket.id, name });
     }
@@ -141,15 +159,29 @@ io.on("connection", (socket) => {
     room.scores[socket.id] = room.scores[socket.id] || 0;
     sendPlayersList();
 
+    // Jeśli gra trwa, to wyślij stan
     if (room.started) {
       socket.emit("started");
+
+      // Jeśli gracz był impostorem, przypisz mu rolę "IMPOSTER"
       const currentWord = room.playerRoles[name] || room.currentWord;
       const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
-      const playerState = room.playerStates[socket.id] || "before_vote"; // Stan gracza
-      socket.emit("joined", { currentWord: actualWord, playerState });
+
+      socket.emit("joined", { currentWord: actualWord });
     } else {
       socket.emit("joined", {});
     }
+  });
+
+  socket.on("start", () => {
+    const room = rooms[GAME_ROOM];
+    if (room.started) {
+      socket.emit("error", { message: "Gra już została rozpoczęta." });
+      return;
+    }
+    room.started = true;
+    io.to(GAME_ROOM).emit("started");
+    sendNewRound();
   });
 
   socket.on("vote", (votedId) => {
@@ -157,20 +189,13 @@ io.on("connection", (socket) => {
     if (!room.players.some(p => p.id === socket.id)) return;
     if (!room.players.some(p => p.id === votedId)) return;
 
-    if (room.playerStates[socket.id] === "voted") {
-      socket.emit("error", { message: "Już zagłosowałeś!" });
-      return;
-    }
-
     room.votes[socket.id] = votedId;
     room.voteHistory.push({ from: socket.id, to: votedId });
-    room.playerStates[socket.id] = "voted";
 
-    const allVoted = Object.keys(room.votes).length === room.players.length;
-    if (allVoted) {
-      room.playerStates = {};  // Resetujemy stany graczy na "after_vote"
-      room.players.forEach(player => room.playerStates[player.id] = "after_vote");
+    const totalVotes = Object.keys(room.votes).length;
+    const totalPlayers = room.players.length;
 
+    if (totalVotes === totalPlayers) {
       const voteCounts = {};
       Object.values(room.votes).forEach((id) => {
         voteCounts[id] = (voteCounts[id] || 0) + 1;
@@ -213,6 +238,14 @@ io.on("connection", (socket) => {
     sendNewRound();
   });
 
+  socket.on("leave", () => {
+    const room = rooms[GAME_ROOM];
+    room.players = room.players.filter(p => p.id !== socket.id);
+    delete room.scores[socket.id];
+    delete room.votes[socket.id];
+    sendPlayersList();
+  });
+
   socket.on("end", () => {
     rooms[GAME_ROOM] = {
       players: [],
@@ -225,10 +258,18 @@ io.on("connection", (socket) => {
       usedWords: new Set(),
       currentWord: null,
       currentMap: {},
-      playerRoles: {},
-      playerStates: {}
+      playerRoles: {}
     };
     io.to(GAME_ROOM).emit("ended");
+  });
+
+  socket.on("kick", (id) => {
+    const room = rooms[GAME_ROOM];
+    room.players = room.players.filter(p => p.id !== id);
+    delete room.scores[id];
+    delete room.votes[id];
+    io.to(id).emit("ended");
+    sendPlayersList();
   });
 
   socket.on("disconnect", () => {
@@ -236,6 +277,7 @@ io.on("connection", (socket) => {
   });
 });
 
+// Połączenie z MongoDB
 client.connect()
   .then(() => {
     console.log("Połączono z MongoDB!");
