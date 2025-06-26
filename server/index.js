@@ -248,6 +248,12 @@ io.on("connection", (socket) => {
   });
 
   socket.on("next", () => {
+    // Resetowanie statusu głosowania na początek nowej rundy
+    rooms[GAME_ROOM].players.forEach(player => {
+      playersData[player.name].vote = null;  // Resetujemy głos
+      room.playerStatus[player.name] = "ingame"; // Resetujemy status na 'ingame'
+    });
+
     sendNewRound();
   });
 
