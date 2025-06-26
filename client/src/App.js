@@ -43,6 +43,10 @@ function App() {
       setError(null);
     });
 
+    socket.on("reconnect_error", () => {
+      console.log("Błąd ponownego połączenia.");
+    });
+
     socket.on("players", setPlayers);
     socket.on("round", ({ word, remaining }) => {
       setWord(word);
@@ -105,11 +109,26 @@ function App() {
     socketRef.current.emit("next");
   };
 
-  const endGame = () => socketRef.current.emit("end");
+  const endGame = () => {
+    socketRef.current.emit("end");
+    // Resetowanie lokalnych zmiennych
+    setPlayers([]);
+    setWord(null);
+    setVoted(false);
+    setResult(null);
+    setScores({});
+    setStep("code");
+  };
 
   const leaveGame = () => {
     socketRef.current.emit("leave");
-    window.location.reload();
+    // Resetowanie lokalnych zmiennych
+    setPlayers([]);
+    setWord(null);
+    setVoted(false);
+    setResult(null);
+    setScores({});
+    setStep("code");
   };
 
   const removePlayer = (name) => {
@@ -122,7 +141,7 @@ function App() {
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
 
   return (
-    <div className={container ${theme}}>
+    <div className={`container ${theme}`}>
       <h1 className="logo">
         IMPOSTER <span>by @matttsch</span>
       </h1>
