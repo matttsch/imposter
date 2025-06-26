@@ -15,8 +15,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
-  const [playerState, setPlayerState] = useState("");  // Stan gracza
-  const [statusMessage, setStatusMessage] = useState(""); // Wyświetlanie statusu
+  const [playerState, setPlayerState] = useState("");  // Status gracza
 
   const socketRef = useRef(null);
 
@@ -65,13 +64,6 @@ function App() {
 
     socket.on("playerStatus", ({ status }) => {
       setPlayerState(status);  // Odbieramy status gracza z serwera
-      if (status === "voted") {
-        setStatusMessage("Czekamy na pozostałych graczy...");
-      } else if (status === "result") {
-        setStatusMessage("Głosowanie zakończone, czekaj na kolejną rundę...");
-      } else {
-        setStatusMessage("Oddaj swój głos");
-      }
     });
 
     socket.on("error", (err) => {
@@ -179,7 +171,7 @@ function App() {
                     </span>
                     <span className="player-name">{p.name}</span>
                     <span className="player-status">
-                      {playerState === "voted" ? "Czekamy na pozostałych graczy..." : ""}
+                      {playerState} {/* Wyświetlamy dokładny status gracza */}
                     </span>
                   </div>
                   <div className="player-actions">
@@ -282,4 +274,3 @@ function App() {
 }
 
 export default App;
- 
