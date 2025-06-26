@@ -92,7 +92,7 @@ async function sendNewRound() {
     const existingWord = await wordsCollection.findOne({ word: word });
     
     if (existingWord) {
-      console.log(Słowo ${word} już istnieje w bazie danych. Losowanie nowego...);
+      console.log(`Słowo ${word} już istnieje w bazie danych. Losowanie nowego...`);
       await getUniqueWord(); // Jeśli słowo już istnieje, losujemy inne
     } else {
       // Jeśli słowo nie istnieje, dodajemy je do bazy danych i do użytych słów
@@ -129,7 +129,7 @@ async function sendNewRound() {
 }
 
 io.on("connection", (socket) => {
-  console.log(Gracz połączony: ${socket.id});
+  console.log(`Gracz połączony: ${socket.id}`);
 
   // Sprawdzanie statusu gry
   socket.on("checkStatus", () => {
@@ -281,6 +281,6 @@ io.on("connection", (socket) => {
 client.connect()
   .then(() => {
     console.log("Połączono z MongoDB!");
-    server.listen(PORT, () => console.log(Server listening on port ${PORT}));
+    server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
   })
   .catch(console.error);
