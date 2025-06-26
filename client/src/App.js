@@ -90,7 +90,7 @@ function App() {
 
   const startGame = () => {
     setError(null);
-    socketRef.current.emit("start");
+    socketRef.current.emit("start");  // Wysyłamy zapytanie do serwera, aby rozpocząć grę
   };
 
   const voteImposter = (name) => {
