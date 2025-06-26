@@ -15,7 +15,7 @@ function App() {
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
-  const [votedAlready, setVotedAlready] = useState(false);  // Dodajemy stan do śledzenia, czy gracz już zagłosował
+  const [playerState, setPlayerState] = useState(""); // Nowy stan gracza
 
   const socketRef = useRef(null);
 
@@ -27,15 +27,16 @@ function App() {
     const socket = socketRef.current;
 
     socket.on("players", setPlayers);
-    socket.on("round", ({ word, remaining }) => {
+    socket.on("round", ({ word, remaining, playerState }) => {
       setWord(word);
       setRemaining(remaining);
       setVoted(false);
       setResult(null);
+      setPlayerState(playerState);  // Ustawiamy stan gracza
     });
     socket.on("started", () => setStarted(true));
     socket.on("ended", () => window.location.reload());
-    socket.on("joined", ({ currentWord }) => {
+    socket.on("joined", ({ currentWord, playerState }) => {
       if (currentWord) {
         setWord(currentWord);
         setStep("game");
@@ -43,9 +44,10 @@ function App() {
       } else {
         setStep("game");
       }
+      setPlayerState(playerState); // Ustawiamy stan gracza przy dołączeniu
     });
     socket.on("voted", ({ voted }) => {
-      setVotedAlready(voted); // Ustawiamy, czy gracz już zagłosował
+      setVoted(voted);  // Sprawdzamy, czy gracz zagłosował
     });
     socket.on("error", (err) => {
       setError(err.message);
@@ -76,7 +78,7 @@ function App() {
   };
 
   const voteImposter = (id) => {
-    if (!voted && !votedAlready) {  // Sprawdzamy, czy gracz nie zagłosował już wcześniej
+    if (!voted && playerState !== "voted") {  // Sprawdzamy, czy gracz może głosować
       socketRef.current.emit("vote", id);
       setVoted(true);
     }
@@ -150,7 +152,7 @@ function App() {
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started && !voted && !result && p.id !== socketRef.current.id && (
+                    {started && playerState === "before_vote" && !voted && !result && p.id !== socketRef.current.id && (
                       <button className="vote-btn" onClick={() => voteImposter(p.id)}>
                         Głosuj
                       </button>
@@ -161,8 +163,11 @@ function App() {
                       ) && (
                         <em className="voted-note">Zagłosowałeś na {p.name}</em>
                       )}
-                    {votedAlready && (
-                      <p className="voted-note">Już zagłosowałeś!</p> // Wyświetlamy, że gracz już zagłosował
+                    {playerState === "voted" && (
+                      <p className="voted-note">Już zagłosowałeś!</p> // Informacja, że gracz zagłosował
+                    )}
+                    {playerState === "after_vote" && (
+                      <p className="voted-note">Czekamy na wyniki...</p> // Po zakończeniu głosowania
                     )}
                   </div>
                 </li>
