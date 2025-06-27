@@ -135,6 +135,7 @@ io.on("connection", (socket) => {
 
     // Sprawdzamy, czy gracz o danym imieniu już istnieje w pokoju
     const existingPlayer = room.players.find(p => p.name === name);
+
     if (existingPlayer) {
       // Gracz już istnieje - przypisujemy mu nowe socket.id
       existingPlayer.id = socket.id;
@@ -194,7 +195,12 @@ io.on("connection", (socket) => {
 
   socket.on("vote", (votedName) => {  
     const room = rooms[GAME_ROOM];
-    const playerName = room.players.find(p => p.id === socket.id).name;
+    const playerName = room.players.find(p => p.id === socket.id)?.name;  // Zmieniamy tutaj: sprawdzamy, czy gracz istnieje
+
+    if (!playerName) {
+      console.log(`Gracz o ID ${socket.id} nie został znaleziony.`);
+      return; // Jeśli gracz nie jest znaleziony, przerywamy operację
+    }
 
     // Jeśli gracz już zagłosował, nie pozwalamy mu głosować ponownie
     if (playersData[playerName].vote) {
@@ -212,8 +218,6 @@ io.on("connection", (socket) => {
     const totalPlayers = room.players.length;
 
     if (totalVotes === totalPlayers) {
-      console.log("Wszystkie głosy zostały oddane, przetwarzamy wyniki");
-
       const voteCounts = {};
 
       Object.values(room.votes).forEach(({ votedName }) => {
@@ -291,24 +295,7 @@ io.on("connection", (socket) => {
     io.to(GAME_ROOM).emit("ended");
   });
 
-  socket.on("kick", (name) => {
-    const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.name !== name);
-    delete room.scores[name];
-    delete room.votes[name];
-    io.to(name).emit("ended");
-    sendPlayersList();
-  });
-
   socket.on("disconnect", () => {
     // nie usuwamy z players, bo reconnect
   });
 });
-
-// Połączenie z MongoDB
-client.connect()
-  .then(() => {
-    console.log("Połączono z MongoDB!");
-    server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
-  })
-  .catch(console.error);
