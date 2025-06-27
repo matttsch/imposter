@@ -265,11 +265,9 @@ io.on("connection", (socket) => {
 
   socket.on("leave", () => {
     const room = rooms[GAME_ROOM];
-    // Usuwamy gracza po jego imieniu
-    room.players = room.players.filter(p => p.name !== socket.name);
-    // Resetowanie głosów i statusów przy opuszczeniu gry
-    delete room.scores[socket.name];
-    delete room.votes[socket.name];
+    room.players = room.players.filter(p => p.id !== socket.id);
+    delete room.scores[socket.id];
+    delete room.votes[socket.id];
 
     // Resetowanie danych gracza po opuszczeniu gry
     const playerName = room.players.find(p => p.id === socket.id)?.name;
