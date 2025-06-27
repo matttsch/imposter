@@ -189,7 +189,7 @@ h1.logo span {
   }
 
   .word-display {
-    font-size: 1.8rem;
+    font-size: 10vw; /* Dodatkowy rozmiar czcionki dla małych ekranów */
   }
 }
 
@@ -250,13 +250,15 @@ h1.logo span {
 /* Podświetlenie wylosowanego hasła lub słowa IMPOSTER */
 .word-display {
   text-align: center;
-  font-size: 2.5rem;
+  font-size: 2.5rem; /* Domyślny rozmiar czcionki */
   margin: 1rem 0;
   font-weight: bold;
   padding: 1rem;
   border: 2px dashed var(--accent-dark);
   border-radius: 10px;
   background-color: rgba(88, 166, 255, 0.1);
+  font-size: 8vw; /* Dopasowanie czcionki do szerokości */
+  white-space: nowrap; /* Zapobiega łamaniu tekstu */
 }
 
 .container.light .word-display {
@@ -279,4 +281,3 @@ h1.logo span {
 .leave-btn:hover {
   background-color: #777;
 }
-
