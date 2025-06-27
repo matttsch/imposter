@@ -1,9 +1,9 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const fs = require("fs");
-const cors = require("cors");
-const { MongoClient } = require('mongodb');
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+import fs from "fs";
+import cors from "cors";
+import { MongoClient } from "mongodb";
 
 // Uzyskaj URI połączenia z MongoDB z zmiennej środowiskowej
 const uri = process.env.MONGODB_URI;  // Render automatycznie załaduje zmienną środowiskową
@@ -192,20 +192,21 @@ io.on("connection", (socket) => {
     sendNewRound();
   });
 
-  socket.on("vote", ({ name, votedName }) => {  
+  socket.on("vote", (votedName) => {  
     const room = rooms[GAME_ROOM];
+    const playerName = room.players.find(p => p.id === socket.id).name;
 
     // Jeśli gracz już zagłosował, nie pozwalamy mu głosować ponownie
-    if (playersData[name].vote) {
-      console.log(`${name} próbował zagłosować ponownie, ale już zagłosował`);
+    if (playersData[playerName].vote) {
+      console.log(`${playerName} próbował zagłosować ponownie, ale już zagłosował`);
       return;
     }
 
-    room.votes[name] = { votedName, playerName: name };
-    room.voteHistory.push({ from: name, to: votedName, playerName: name });
+    room.votes[playerName] = { votedName, playerName };
+    room.voteHistory.push({ from: playerName, to: votedName, playerName });
 
-    room.playerStatus[name] = "voted";
-    playersData[name].vote = votedName; // Przechowujemy głos gracza
+    room.playerStatus[playerName] = "voted";
+    playersData[playerName].vote = votedName; // Przechowujemy głos gracza
 
     const totalVotes = Object.keys(room.votes).length;
     const totalPlayers = room.players.length;
@@ -267,6 +268,13 @@ io.on("connection", (socket) => {
     room.players = room.players.filter(p => p.id !== socket.id);
     delete room.scores[socket.id];
     delete room.votes[socket.id];
+
+    // Usuwanie danych gracza z playersData
+    const playerName = room.players.find(p => p.id === socket.id)?.name;
+    if (playerName) {
+      delete playersData[playerName];  // Usuwamy dane gracza
+    }
+
     sendPlayersList();
   });
 
@@ -285,6 +293,13 @@ io.on("connection", (socket) => {
       playerRoles: {},
       playerStatus: {}
     };
+
+    // Resetowanie danych graczy (głosowanie i status)
+    for (const playerName in playersData) {
+      playersData[playerName].vote = null;  // Resetujemy głosowanie
+      playersData[playerName].status = "ingame";  // Resetujemy status
+    }
+
     io.to(GAME_ROOM).emit("ended");
   });
 
