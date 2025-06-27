@@ -135,7 +135,6 @@ io.on("connection", (socket) => {
 
     // Sprawdzamy, czy gracz o danym imieniu już istnieje w pokoju
     const existingPlayer = room.players.find(p => p.name === name);
-
     if (existingPlayer) {
       // Gracz już istnieje - przypisujemy mu nowe socket.id
       existingPlayer.id = socket.id;
@@ -193,26 +192,20 @@ io.on("connection", (socket) => {
     sendNewRound();
   });
 
-  socket.on("vote", (votedName) => {  
+  socket.on("vote", ({ name, votedName }) => {  
     const room = rooms[GAME_ROOM];
-    const playerName = room.players.find(p => p.id === socket.id)?.name;  // Zmieniamy tutaj: sprawdzamy, czy gracz istnieje
-
-    if (!playerName) {
-      console.log(`Gracz o ID ${socket.id} nie został znaleziony.`);
-      return; // Jeśli gracz nie jest znaleziony, przerywamy operację
-    }
 
     // Jeśli gracz już zagłosował, nie pozwalamy mu głosować ponownie
-    if (playersData[playerName].vote) {
-      console.log(`${playerName} próbował zagłosować ponownie, ale już zagłosował`);
+    if (playersData[name].vote) {
+      console.log(`${name} próbował zagłosować ponownie, ale już zagłosował`);
       return;
     }
 
-    room.votes[playerName] = { votedName, playerName };
-    room.voteHistory.push({ from: playerName, to: votedName, playerName });
+    room.votes[name] = { votedName, playerName: name };
+    room.voteHistory.push({ from: name, to: votedName, playerName: name });
 
-    room.playerStatus[playerName] = "voted";
-    playersData[playerName].vote = votedName; // Przechowujemy głos gracza
+    room.playerStatus[name] = "voted";
+    playersData[name].vote = votedName; // Przechowujemy głos gracza
 
     const totalVotes = Object.keys(room.votes).length;
     const totalPlayers = room.players.length;
@@ -295,7 +288,24 @@ io.on("connection", (socket) => {
     io.to(GAME_ROOM).emit("ended");
   });
 
+  socket.on("kick", (name) => {
+    const room = rooms[GAME_ROOM];
+    room.players = room.players.filter(p => p.name !== name);
+    delete room.scores[name];
+    delete room.votes[name];
+    io.to(name).emit("ended");
+    sendPlayersList();
+  });
+
   socket.on("disconnect", () => {
     // nie usuwamy z players, bo reconnect
   });
 });
+
+// Połączenie z MongoDB
+client.connect()
+  .then(() => {
+    console.log("Połączono z MongoDB!");
+    server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
+  })
+  .catch(console.error);
