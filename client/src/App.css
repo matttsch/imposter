@@ -17,8 +17,8 @@ body.dark, html.dark {
   padding: 0;
   font-family: "Segoe UI", sans-serif;
   min-height: 100vh;
-  background-color: var(--bg-dark);
-  color: var(--text-dark);
+  background-color: var(--bg-dark);  /* Ciemne tło */
+  color: var(--text-dark);  /* Jasny tekst */
   transition: background-color 0.3s, color 0.3s;
 }
 
@@ -27,8 +27,8 @@ body.light, html.light {
   padding: 0;
   font-family: "Segoe UI", sans-serif;
   min-height: 100vh;
-  background-color: var(--bg-light);
-  color: var(--text-light);
+  background-color: var(--bg-light);  /* Jasne tło */
+  color: var(--text-light);  /* Ciemny tekst */
   transition: background-color 0.3s, color 0.3s;
 }
 
