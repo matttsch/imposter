@@ -1,312 +1,266 @@
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-const fs = require("fs");
-const cors = require("cors");
-const { MongoClient } = require('mongodb');
+import React, { useState, useEffect, useRef } from "react";
+import io from "socket.io-client";
+import "./App.css";
 
-// Uzyskaj URI połączenia z MongoDB z zmiennej środowiskowej
-const uri = process.env.MONGODB_URI;  // Render automatycznie załaduje zmienną środowiskową
+function App() {
+  const [step, setStep] = useState("code");
+  const [code, setCode] = useState(localStorage.getItem("code") || "");
+  const [name, setName] = useState(localStorage.getItem("name") || "");
+  const [players, setPlayers] = useState([]);
+  const [word, setWord] = useState(null);
+  const [started, setStarted] = useState(false);
+  const [error, setError] = useState(null);
+  const [scores, setScores] = useState({});
+  const [voted, setVoted] = useState(false);
+  const [result, setResult] = useState(null);
+  const [theme, setTheme] = useState("dark");
+  const [remaining, setRemaining] = useState(null);
+  const [playerStatus, setPlayerStatus] = useState(null);
+  const [votedPlayer, setVotedPlayer] = useState(null);  // Player who the user voted for
 
-// Skonfiguruj klienta MongoDB, wymuszając połączenie SSL
-const client = new MongoClient(uri, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  ssl: true  // Wymuś połączenie SSL
-});
+  const socketRef = useRef(null);
 
-const app = express();
-app.use(cors());
-
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: { origin: "*" },
-  pingTimeout: 30000,
-  pingInterval: 10000,
-});
-
-const PORT = process.env.PORT || 3001;
-const ACCESS_CODE = "Kebsiary14";
-const GAME_ROOM = "main-room";
-
-const rooms = {
-  [GAME_ROOM]: {
-    players: [],  // Gracze będą przechowywani po nazwach
-    started: false,
-    votes: {}, // Głosy będą przypisane do nazw graczy
-    scores: {},
-    imposterIndex: null,
-    voteHistory: [],
-    lastResult: null,
-    usedWords: new Set(),
-    currentWord: null,
-    currentMap: {},
-    playerRoles: {},  // Roles przypisane do nazw graczy
-    playerStatus: {},  // Statusy graczy (ingame, voted, result)
-  }
-};
-
-// Przechowywanie danych graczy (np. socket.id, status)
-const playersData = {};
-
-let nouns = Array.from(new Set(
-  fs.readFileSync("polish_nouns.txt", "utf-8")
-    .split("\n")
-    .map(word => word.trim())
-    .filter(Boolean)
-));
-
-function sendPlayersList() {
-  io.to(GAME_ROOM).emit("players", rooms[GAME_ROOM].players);
-}
-
-async function getRemainingWordsCount() {
-  const room = rooms[GAME_ROOM];
-  const database = client.db('imposter_game');
-  const wordsCollection = database.collection('used_words');
-
-  const usedWordsCount = await wordsCollection.countDocuments();  // Metoda do zliczania dokumentów w kolekcji
-  const remainingWordsCount = nouns.length - usedWordsCount;
-  return remainingWordsCount;
-}
-
-async function sendNewRound() {
-  const room = rooms[GAME_ROOM];
-  const players = room.players;
-
-  async function getUniqueWord() {
-    const availableWords = nouns.filter(w => !room.usedWords.has(w));
-    if (availableWords.length === 0) {
-      io.to(GAME_ROOM).emit("error", { message: "Skończyły się słowa!" });
-      return;
-    }
-
-    const word = availableWords[Math.floor(Math.random() * availableWords.length)];
-    const database = client.db('imposter_game');
-    const wordsCollection = database.collection('used_words');
-    
-    const existingWord = await wordsCollection.findOne({ word: word });
-    
-    if (existingWord) {
-      console.log(`Słowo ${word} już istnieje w bazie danych. Losowanie nowego...`);
-      await getUniqueWord(); // Jeśli słowo już istnieje, losujemy inne
-    } else {
-      await wordsCollection.insertOne({ word: word });
-      room.usedWords.add(word); // Dodajemy słowo do użytych słów w pokoju
-      room.currentWord = word;
-      room.votes = {};
-      room.voteHistory = [];
-      room.lastResult = null;
-      room.currentMap = {};
-      room.playerRoles = {}; // Resetujemy role graczy
-
-      room.imposterIndex = Math.floor(Math.random() * players.length);  // Losowanie impostera
-
-      const remainingWords = await getRemainingWordsCount();  
-
-      players.forEach((player, i) => {
-        const isImposter = i === room.imposterIndex;
-        const role = isImposter ? "IMPOSTER" : word;
-        room.currentMap[player.name] = role;
-        room.playerRoles[player.name] = role; 
-        room.playerStatus[player.name] = "ingame";  // Ustawiamy status gracza na 'ingame'
-        io.to(player.id).emit("round", {
-          word: role,
-          remaining: remainingWords 
-        });
-      });
-    }
-  }
-
-  await getUniqueWord().catch(console.error);
-}
-
-io.on("connection", (socket) => {
-  console.log(`Gracz połączony: ${socket.id}`);
-
-  // Przyłączanie gracza
-  socket.on("join", ({ code, name }) => {
-    const room = rooms[GAME_ROOM];
-
-    if (code !== ACCESS_CODE) {
-      socket.emit("error", { message: "Nieprawidłowy kod dostępu." });
-      return;
-    }
-
-    // Sprawdzamy, czy gracz o danym imieniu już istnieje w pokoju
-    const existingPlayer = room.players.find(p => p.name === name);
-    if (existingPlayer) {
-      // Gracz już istnieje - przypisujemy mu nowe socket.id
-      existingPlayer.id = socket.id;
-      console.log(`Gracz z imieniem ${name} dołączył ponownie. Nowe socket.id: ${socket.id}`);
-    } else {
-      // Gracz nie istnieje - traktujemy go jako nowego
-      room.players.push({ id: socket.id, name });
-      console.log(`Nowy gracz połączony: ${socket.id}, Imię: ${name}`);
-    }
-
-    // Zachowanie danych gracza (np. status, głos)
-    playersData[name] = playersData[name] || { id: socket.id, status: "ingame", vote: null };
-
-    socket.join(GAME_ROOM);
-    room.scores[name] = room.scores[name] || 0;
-    room.playerStatus[name] = room.playerStatus[name] || "ingame";
-    sendPlayersList();
-
-    // Jeśli gra już się rozpoczęła, wysyłamy odpowiedni stan gry
-    if (room.started) {
-      socket.emit("started");
-      const currentWord = room.playerRoles[name] || room.currentWord;
-      const actualWord = currentWord === "IMPOSTER" ? "IMPOSTER" : currentWord;
-      socket.emit("joined", { currentWord: actualWord });
-    } else {
-      socket.emit("joined", {});
-    }
-
-    // Jeśli gracz już zagłosował, nie pozwalamy mu głosować ponownie
-    if (playersData[name].vote) {
-      socket.emit("alreadyVoted", { votedName: playersData[name].vote });
-    }
-
-    // Jeśli gracz jest na ekranie wyników, musimy wyświetlić wyniki
-    if (room.lastResult) {
-      socket.emit("result", room.lastResult);
-      socket.emit("scores", room.scores);
-    }
-  });
-
-  socket.on("start", () => {
-    const room = rooms[GAME_ROOM];
-    
-    if (room.started) {
-      socket.emit("error", { message: "Gra już została rozpoczęta." });
-      return;
-    }
-
-    room.started = true;
-    room.players.forEach((player) => {
-      room.playerStatus[player.name] = "ingame";
+  useEffect(() => {
+    socketRef.current = io("https://imposter-014f.onrender.com", {
+      autoConnect: false,
+      pingTimeout: 30000,
+      pingInterval: 10000,
     });
 
-    io.to(GAME_ROOM).emit("started");
-    sendNewRound();
-  });
+    const socket = socketRef.current;
 
-  socket.on("vote", ({ name, votedName }) => {  
-    const room = rooms[GAME_ROOM];
+    socket.on("connect", () => {
+      console.log("Połączono z serwerem.");
+    });
 
-    // Jeśli gracz już zagłosował, nie pozwalamy mu głosować ponownie
-    if (playersData[name].vote) {
-      console.log(`${name} próbował zagłosować ponownie, ale już zagłosował`);
-      return;
-    }
+    socket.on("disconnect", () => {
+      console.log("Rozłączono z serwerem.");
+      setError("Połączenie z serwerem zostało przerwane.");
+    });
 
-    room.votes[name] = { votedName, playerName: name };
-    room.voteHistory.push({ from: name, to: votedName, playerName: name });
+    socket.on("reconnect", () => {
+      console.log("Ponowne połączenie z serwerem.");
+      setError(null);
+    });
 
-    room.playerStatus[name] = "voted";
-    playersData[name].vote = votedName; // Przechowujemy głos gracza
-
-    const totalVotes = Object.keys(room.votes).length;
-    const totalPlayers = room.players.length;
-
-    if (totalVotes === totalPlayers) {
-      const voteCounts = {};
-
-      Object.values(room.votes).forEach(({ votedName }) => {
-        voteCounts[votedName] = (voteCounts[votedName] || 0) + 1;
-      });
-
-      const maxVotes = Math.max(...Object.values(voteCounts));
-      const topVotedNames = Object.entries(voteCounts)
-        .filter(([_, v]) => v === maxVotes)
-        .map(([name]) => name);
-
-      const votedOutNames = topVotedNames;
-      const imposter = room.players[room.imposterIndex];
-
-      if (topVotedNames.includes(imposter.name)) {
-        for (const [voterName, votedName] of Object.entries(room.votes)) {
-          if (votedName === imposter.name) {
-            room.scores[voterName] = (room.scores[voterName] || 0) + 1;
-          }
-        }
+    socket.on("players", setPlayers);
+    socket.on("round", ({ word, remaining }) => {
+      setWord(word);
+      setRemaining(remaining);
+      setVoted(false);
+      setResult(null);
+    });
+    socket.on("started", () => setStarted(true));
+    socket.on("ended", () => window.location.reload());
+    socket.on("joined", ({ currentWord }) => {
+      if (currentWord) {
+        setWord(currentWord);
+        setStep("game");
+        setStarted(true);
       } else {
-        room.scores[imposter.name] = (room.scores[imposter.name] || 0) + 1;
+        setStep("game");
       }
+    });
+    socket.on("error", (err) => {
+      setError(err.message);
+      setStep("code");
+    });
+    socket.on("scores", setScores);
+    socket.on("result", setResult);
 
-      room.lastResult = {
-        votedOut: votedOutNames.length === 1 ? votedOutNames[0] : votedOutNames,
-        imposterName: imposter.name,
-        voteHistory: room.voteHistory.map(({ from, to, playerName }) => {
-          return { from, to, playerName };
-        })
-      };
-
-      room.players.forEach((player) => {
-        room.playerStatus[player.name] = "result";  // Ustawiamy status na 'result' po zakończeniu głosowania
-      });
-
-      io.to(GAME_ROOM).emit("result", room.lastResult);
-      io.to(GAME_ROOM).emit("scores", room.scores);
-    }
-  });
-
-  socket.on("next", () => {
-    // Resetowanie statusu głosowania na początek nowej rundy
-    rooms[GAME_ROOM].players.forEach(player => {
-      playersData[player.name].vote = null;  // Resetujemy głos
-      rooms[GAME_ROOM].playerStatus[player.name] = "ingame"; // Resetujemy status na 'ingame'
+    // Nowe: Odbieramy informację, jeśli gracz już zagłosował
+    socket.on("alreadyVoted", ({ votedName }) => {
+      setVotedPlayer(votedName); // Przechowujemy nazwisko gracza, na którego zagłosowano
+      setVoted(true); // Zmieniamy status na "zagłosował"
     });
 
-    sendNewRound();
-  });
+    socket.connect();
 
-  socket.on("leave", () => {
-    const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== socket.id);
-    // Resetowanie głosów i statusów przy opuszczeniu gry
-    delete room.scores[socket.id];
-    delete room.votes[socket.id];
-    sendPlayersList();
-  });
-
-  socket.on("end", () => {
-    rooms[GAME_ROOM] = {
-      players: [],
-      started: false,
-      votes: {},
-      scores: {},
-      imposterIndex: null,
-      voteHistory: [],
-      lastResult: null,
-      usedWords: new Set(),
-      currentWord: null,
-      currentMap: {},
-      playerRoles: {},
-      playerStatus: {}
+    return () => {
+      socket.disconnect();
     };
-    io.to(GAME_ROOM).emit("ended");
-  });
+  }, []);
 
-  socket.on("kick", (name) => {
-    const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.name !== name);
-    delete room.scores[name];
-    delete room.votes[name];
-    io.to(name).emit("ended");
-    sendPlayersList();
-  });
+  const joinRoom = () => {
+    setError(null);
+    localStorage.setItem("code", code);
+    localStorage.setItem("name", name);
+    socketRef.current.emit("join", { code, name });
+  };
 
-  socket.on("disconnect", () => {
-    // nie usuwamy z players, bo reconnect
-  });
-});
+  const startGame = () => {
+    setError(null);
+    socketRef.current.emit("start");  // Wysyłamy zapytanie do serwera, aby rozpocząć grę
+  };
 
-// Połączenie z MongoDB
-client.connect()
-  .then(() => {
-    console.log("Połączono z MongoDB!");
-    server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
-  })
-  .catch(console.error);
+  const voteImposter = (id) => {
+    if (!voted) {
+      socketRef.current.emit("vote", { name, votedName: id });
+      setVoted(true);
+    }
+  };
+
+  const nextRound = () => {
+    setResult(null);
+    socketRef.current.emit("next");
+  };
+
+  const endGame = () => socketRef.current.emit("end");
+
+  const leaveGame = () => {
+    socketRef.current.emit("leave");
+    window.location.reload();
+  };
+
+  const removePlayer = (id) => {
+    socketRef.current.emit("kick", id);
+  };
+
+  const toggleTheme = () =>
+    setTheme(theme === "dark" ? "light" : "dark");
+
+  const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
+
+  return (
+    <div className={`container ${theme}`}>
+      <h1 className="logo">
+        IMPOSTER <span>by @matttsch</span>
+      </h1>
+      <button className="theme-toggle" onClick={toggleTheme}>
+        {themeLabel}
+      </button>
+
+      {step === "code" && (
+        <div className="login-box">
+          <input
+            className="input"
+            placeholder="Kod dostępu"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+          />
+          <input
+            className="input"
+            placeholder="Imię"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button className="btn" onClick={joinRoom}>
+            Dołącz
+          </button>
+          {error && <p className="error">{error}</p>}
+        </div>
+      )}
+
+      {step === "game" && (
+        <div className="game-box">
+          <div className="players-box">
+            <strong>Gracze:</strong>
+            <ul className="player-list">
+              {players.map((p) => (
+                <li key={p.name} className="player-row">
+                  <div className="player-info">
+                    <span
+                      className="remove-btn"
+                      onClick={() => removePlayer(p.name)}
+                    >
+                      ❌
+                    </span>
+                    <span className="player-name">{p.name}</span>
+                  </div>
+                  <div className="player-actions">
+                    {started && !voted && !result && p.name !== name && (
+                      <button
+                        className="vote-btn"
+                        onClick={() => voteImposter(p.name)}
+                      >
+                        Głosuj
+                      </button>
+                    )}
+                    {voted && votedPlayer === p.name && (
+                      <em className="voted-note">Zagłosowałeś na {p.name}</em>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {!started ? (
+            <button className="btn" onClick={startGame}>
+              Start gry
+            </button>
+          ) : (
+            <div className="round-box">
+              <h2 className="word-display">{word}</h2>
+
+              {result && (
+                <div className="result-box">
+                  {Array.isArray(result.votedOut) ? (
+                    <h3>
+                      Gracze wytypowali na IMPOSTERA:{" "}
+                      {result.votedOut.join(", ")}
+                    </h3>
+                  ) : (
+                    <h3>
+                      Gracze wytypowali na IMPOSTERA: {result.votedOut}
+                    </h3>
+                  )}
+                  <p>
+                    Rzeczywisty imposter:{" "}
+                    <strong>{result.imposterName}</strong>
+                  </p>
+                  <table className="vote-table">
+                    <thead>
+                      <tr>
+                        <th>Gracz</th>
+                        <th>Zagłosował na</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.voteHistory.map((v, idx) => {
+                        const correct = v.to === result.imposterName;
+                        return (
+                          <tr key={idx} className={correct ? "highlight" : ""}>
+                            <td>{v.from}</td>
+                            <td>{v.to}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <button className="btn" onClick={nextRound}>
+                    Kolejna runda
+                  </button>
+                </div>
+              )}
+
+              {!result && (
+                <p>
+                  {!voted
+                    ? "Oddaj swój głos"
+                    : "Czekamy na pozostałych graczy..."}
+                </p>
+              )}
+
+              <button className="btn end" onClick={endGame}>
+                Koniec gry
+              </button>
+            </div>
+          )}
+
+          {remaining !== null && (
+            <p style={{ textAlign: "right", fontSize: "0.8rem", opacity: 0.6 }}>
+              Pozostało słów: {remaining}
+            </p>
+          )}
+
+          <button className="leave-btn" onClick={leaveGame}>
+            Opuść grę
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
