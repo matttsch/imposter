@@ -1,9 +1,9 @@
-import express from "express";
-import http from "http";
-import { Server } from "socket.io";
-import fs from "fs";
-import cors from "cors";
-import { MongoClient } from "mongodb";
+const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
+const fs = require("fs");
+const cors = require("cors");
+const { MongoClient } = require("mongodb");
 
 // Uzyskaj URI połączenia z MongoDB z zmiennej środowiskowej
 const uri = process.env.MONGODB_URI;  // Render automatycznie załaduje zmienną środowiskową
@@ -269,7 +269,7 @@ io.on("connection", (socket) => {
     delete room.scores[socket.id];
     delete room.votes[socket.id];
 
-    // Usuwanie danych gracza z playersData
+    // Resetowanie danych gracza po opuszczeniu gry
     const playerName = room.players.find(p => p.id === socket.id)?.name;
     if (playerName) {
       delete playersData[playerName];  // Usuwamy dane gracza
@@ -294,7 +294,7 @@ io.on("connection", (socket) => {
       playerStatus: {}
     };
 
-    // Resetowanie danych graczy (głosowanie i status)
+    // Resetujemy dane graczy (głosowanie i status)
     for (const playerName in playersData) {
       playersData[playerName].vote = null;  // Resetujemy głosowanie
       playersData[playerName].status = "ingame";  // Resetujemy status
