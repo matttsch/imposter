@@ -16,7 +16,7 @@ function App() {
   const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
   const [playerStatus, setPlayerStatus] = useState(null);
-  const [votedPlayer, setVotedPlayer] = useState(null);  // Player who the user voted for
+  const [votedPlayer, setVotedPlayer] = useState(null);
 
   const socketRef = useRef(null);
 
@@ -41,6 +41,10 @@ function App() {
     socket.on("reconnect", () => {
       console.log("Ponowne połączenie z serwerem.");
       setError(null);
+    });
+
+    socket.on("reconnect_error", () => {
+      console.log("Błąd ponownego połączenia.");
     });
 
     socket.on("players", setPlayers);
@@ -93,9 +97,9 @@ function App() {
     socketRef.current.emit("start");  // Wysyłamy zapytanie do serwera, aby rozpocząć grę
   };
 
-  const voteImposter = (id) => {
+  const voteImposter = (name) => {
     if (!voted) {
-      socketRef.current.emit("vote", { name, votedName: id });
+      socketRef.current.emit("vote", name);
       setVoted(true);
     }
   };
@@ -112,8 +116,8 @@ function App() {
     window.location.reload();
   };
 
-  const removePlayer = (id) => {
-    socketRef.current.emit("kick", id);
+  const removePlayer = (name) => {
+    socketRef.current.emit("kick", name);
   };
 
   const toggleTheme = () =>
