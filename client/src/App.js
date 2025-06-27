@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import io from "socket.io-client";
 import "./App.css";
 
-
 function App() {
   const [step, setStep] = useState("code");
   const [code, setCode] = useState(localStorage.getItem("code") || "");
@@ -16,15 +15,16 @@ function App() {
   const [result, setResult] = useState(null);
   const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
+  const [playerStatus, setPlayerStatus] = useState(null);
+  const [votedPlayer, setVotedPlayer] = useState(null);  // Player who the user voted for
 
   const socketRef = useRef(null);
 
   useEffect(() => {
-    // Initialize the socket connection
     socketRef.current = io("https://imposter-014f.onrender.com", {
       autoConnect: false,
-      pingTimeout: 30000,  // Timeout ping
-      pingInterval: 10000,  // Czas między pingami
+      pingTimeout: 30000,
+      pingInterval: 10000,
     });
 
     const socket = socketRef.current;
@@ -41,10 +41,6 @@ function App() {
     socket.on("reconnect", () => {
       console.log("Ponowne połączenie z serwerem.");
       setError(null);
-    });
-
-    socket.on("reconnect_error", () => {
-      console.log("Błąd ponownego połączenia.");
     });
 
     socket.on("players", setPlayers);
@@ -72,24 +68,18 @@ function App() {
     socket.on("scores", setScores);
     socket.on("result", setResult);
 
+    // Nowe: Odbieramy informację, jeśli gracz już zagłosował
+    socket.on("alreadyVoted", ({ votedName }) => {
+      setVotedPlayer(votedName); // Przechowujemy nazwisko gracza, na którego zagłosowano
+      setVoted(true); // Zmieniamy status na "zagłosował"
+    });
+
     socket.connect();
 
-    // Wysyłaj zapytanie o status co minutę
-    const checkGameStatus = setInterval(() => {
-      socket.emit("checkStatus");  // Zapytanie o status gry
-    }, 60000); // Co minutę
-
     return () => {
-      clearInterval(checkGameStatus);  // Czyszczenie interwału
       socket.disconnect();
     };
   }, []);
-
-  // Zmienianie klasy w html oraz body w zależności od wybranego trybu
-  useEffect(() => {
-    document.body.className = theme;  // Zmiana klasy w body
-    document.documentElement.className = theme;  // Zmiana klasy w html
-  }, [theme]);
 
   const joinRoom = () => {
     setError(null);
@@ -100,12 +90,12 @@ function App() {
 
   const startGame = () => {
     setError(null);
-    socketRef.current.emit("start");
+    socketRef.current.emit("start");  // Wysyłamy zapytanie do serwera, aby rozpocząć grę
   };
 
   const voteImposter = (id) => {
     if (!voted) {
-      socketRef.current.emit("vote", id);
+      socketRef.current.emit("vote", { name, votedName: id });
       setVoted(true);
     }
   };
@@ -132,7 +122,7 @@ function App() {
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
 
   return (
-    <div className={container ${theme}}>
+    <div className={`container ${theme}`}>
       <h1 className="logo">
         IMPOSTER <span>by @matttsch</span>
       </h1>
@@ -167,28 +157,28 @@ function App() {
             <strong>Gracze:</strong>
             <ul className="player-list">
               {players.map((p) => (
-                <li key={p.id} className="player-row">
+                <li key={p.name} className="player-row">
                   <div className="player-info">
                     <span
                       className="remove-btn"
-                      onClick={() => removePlayer(p.id)}
+                      onClick={() => removePlayer(p.name)}
                     >
                       ❌
                     </span>
                     <span className="player-name">{p.name}</span>
                   </div>
                   <div className="player-actions">
-                    {started && !voted && !result && p.id !== socketRef.current.id && (
-                      <button className="vote-btn" onClick={() => voteImposter(p.id)}>
+                    {started && !voted && !result && p.name !== name && (
+                      <button
+                        className="vote-btn"
+                        onClick={() => voteImposter(p.name)}
+                      >
                         Głosuj
                       </button>
                     )}
-                    {voted &&
-                      result?.voteHistory.some(
-                        (v) => v.from === name && v.to === p.name
-                      ) && (
-                        <em className="voted-note">Zagłosowałeś na {p.name}</em>
-                      )}
+                    {voted && votedPlayer === p.name && (
+                      <em className="voted-note">Zagłosowałeś na {p.name}</em>
+                    )}
                   </div>
                 </li>
               ))}
