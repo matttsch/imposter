@@ -265,14 +265,16 @@ io.on("connection", (socket) => {
 
   socket.on("leave", () => {
     const room = rooms[GAME_ROOM];
-    room.players = room.players.filter(p => p.id !== socket.id);
-    delete room.scores[socket.id];
-    delete room.votes[socket.id];
+    const player = room.players.find(p => p.id === socket.id);
+    
+    if (player) {
+      // Usuwanie gracza po jego socket.id
+      room.players = room.players.filter(p => p.id !== socket.id);
+      delete room.scores[player.name];
+      delete room.votes[player.name];
 
-    // Resetowanie danych gracza po opuszczeniu gry
-    const playerName = room.players.find(p => p.id === socket.id)?.name;
-    if (playerName) {
-      delete playersData[playerName];  // Usuwamy dane gracza
+      // Usuwanie danych gracza z playersData
+      delete playersData[player.name];
     }
 
     sendPlayersList();
@@ -294,7 +296,7 @@ io.on("connection", (socket) => {
       playerStatus: {}
     };
 
-    // Resetujemy dane graczy (głosowanie i status)
+    // Resetowanie danych graczy (głosowanie i status)
     for (const playerName in playersData) {
       playersData[playerName].vote = null;  // Resetujemy głosowanie
       playersData[playerName].status = "ingame";  // Resetujemy status
