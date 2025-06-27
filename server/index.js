@@ -1,4 +1,5 @@
-//dzialajaca!
+// Przywrócenie bazy, zgodnie z Twoimi wymaganiami
+
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -268,6 +269,13 @@ io.on("connection", (socket) => {
     room.players = room.players.filter(p => p.id !== socket.id);
     delete room.scores[socket.id];
     delete room.votes[socket.id];
+
+    // Resetowanie głosów gracza i jego statusu
+    const playerName = room.players.find(p => p.id === socket.id)?.name;
+    if (playerName) {
+      delete playersData[playerName];  // Usuwamy dane gracza
+    }
+
     sendPlayersList();
   });
 
@@ -286,6 +294,13 @@ io.on("connection", (socket) => {
       playerRoles: {},
       playerStatus: {}
     };
+
+    // Resetowanie głosów i statusów graczy
+    Object.keys(playersData).forEach(playerName => {
+      playersData[playerName].vote = null; // Resetowanie głosów
+      playersData[playerName].status = "ingame";  // Resetowanie statusu
+    });
+
     io.to(GAME_ROOM).emit("ended");
   });
 
