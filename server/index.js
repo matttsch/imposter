@@ -192,20 +192,21 @@ io.on("connection", (socket) => {
     sendNewRound();
   });
 
-  socket.on("vote", ({ name, votedName }) => {  
+  socket.on("vote", (votedName) => {  
     const room = rooms[GAME_ROOM];
+    const playerName = room.players.find(p => p.id === socket.id).name;
 
     // Jeśli gracz już zagłosował, nie pozwalamy mu głosować ponownie
-    if (playersData[name].vote) {
-      console.log(`${name} próbował zagłosować ponownie, ale już zagłosował`);
+    if (playersData[playerName].vote) {
+      console.log(`${playerName} próbował zagłosować ponownie, ale już zagłosował`);
       return;
     }
 
-    room.votes[name] = { votedName, playerName: name };
-    room.voteHistory.push({ from: name, to: votedName, playerName: name });
+    room.votes[playerName] = { votedName, playerName };
+    room.voteHistory.push({ from: playerName, to: votedName, playerName });
 
-    room.playerStatus[name] = "voted";
-    playersData[name].vote = votedName; // Przechowujemy głos gracza
+    room.playerStatus[playerName] = "voted";
+    playersData[playerName].vote = votedName; // Przechowujemy głos gracza
 
     const totalVotes = Object.keys(room.votes).length;
     const totalPlayers = room.players.length;
@@ -264,13 +265,32 @@ io.on("connection", (socket) => {
 
   socket.on("leave", () => {
     const room = rooms[GAME_ROOM];
+    const playerName = room.players.find(p => p.id === socket.id).name;
+
+    // Usuwamy gracza z pokoju
     room.players = room.players.filter(p => p.id !== socket.id);
-    delete room.scores[socket.id];
-    delete room.votes[socket.id];
+
+    // Resetowanie głosowania i statusów gracza
+    playersData[playerName].vote = null;  // Resetowanie głosu
+    room.playerStatus[playerName] = "ingame"; // Resetowanie statusu na "ingame"
+
+    // Usuwamy gracza z głosów i punktów
+    delete room.scores[playerName];
+    delete room.votes[playerName];
+
     sendPlayersList();
   });
 
   socket.on("end", () => {
+    const room = rooms[GAME_ROOM];
+
+    // Resetowanie danych graczy przy końcu gry
+    room.players.forEach(player => {
+      // Resetujemy głosowanie i statusy graczy
+      playersData[player.name].vote = null;  // Resetowanie głosu
+      room.playerStatus[player.name] = "ingame";  // Ustawienie statusu gracza na "ingame"
+    });
+
     rooms[GAME_ROOM] = {
       players: [],
       started: false,
@@ -285,6 +305,7 @@ io.on("connection", (socket) => {
       playerRoles: {},
       playerStatus: {}
     };
+
     io.to(GAME_ROOM).emit("ended");
   });
 
