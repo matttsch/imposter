@@ -13,7 +13,7 @@ function App() {
   const [scores, setScores] = useState({});
   const [voted, setVoted] = useState(false);
   const [result, setResult] = useState(null);
-  const [theme, setTheme] = useState("dark");  // Domyślny motyw to ciemny
+  const [theme, setTheme] = useState("dark");
   const [remaining, setRemaining] = useState(null);
 
   const socketRef = useRef(null);
@@ -40,6 +40,10 @@ function App() {
     socket.on("reconnect", () => {
       console.log("Ponowne połączenie z serwerem.");
       setError(null);
+    });
+
+    socket.on("reconnect_error", () => {
+      console.log("Błąd ponownego połączenia.");
     });
 
     socket.on("players", setPlayers);
@@ -127,7 +131,7 @@ function App() {
   const themeLabel = theme === "dark" ? "Tryb jasny" : "Tryb ciemny";
 
   return (
-    <div className={`container ${theme}`}>
+    <div className={container ${theme}}>
       <h1 className="logo">
         IMPOSTER <span>by @matttsch</span>
       </h1>
