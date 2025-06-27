@@ -212,6 +212,8 @@ io.on("connection", (socket) => {
     const totalPlayers = room.players.length;
 
     if (totalVotes === totalPlayers) {
+      console.log("Wszystkie głosy zostały oddane, przetwarzamy wyniki");
+
       const voteCounts = {};
 
       Object.values(room.votes).forEach(({ votedName }) => {
@@ -265,32 +267,13 @@ io.on("connection", (socket) => {
 
   socket.on("leave", () => {
     const room = rooms[GAME_ROOM];
-    const playerName = room.players.find(p => p.id === socket.id).name;
-
-    // Usuwamy gracza z pokoju
     room.players = room.players.filter(p => p.id !== socket.id);
-
-    // Resetowanie głosowania i statusów gracza
-    playersData[playerName].vote = null;  // Resetowanie głosu
-    room.playerStatus[playerName] = "ingame"; // Resetowanie statusu na "ingame"
-
-    // Usuwamy gracza z głosów i punktów
-    delete room.scores[playerName];
-    delete room.votes[playerName];
-
+    delete room.scores[socket.id];
+    delete room.votes[socket.id];
     sendPlayersList();
   });
 
   socket.on("end", () => {
-    const room = rooms[GAME_ROOM];
-
-    // Resetowanie danych graczy przy końcu gry
-    room.players.forEach(player => {
-      // Resetujemy głosowanie i statusy graczy
-      playersData[player.name].vote = null;  // Resetowanie głosu
-      room.playerStatus[player.name] = "ingame";  // Ustawienie statusu gracza na "ingame"
-    });
-
     rooms[GAME_ROOM] = {
       players: [],
       started: false,
@@ -305,7 +288,6 @@ io.on("connection", (socket) => {
       playerRoles: {},
       playerStatus: {}
     };
-
     io.to(GAME_ROOM).emit("ended");
   });
 
