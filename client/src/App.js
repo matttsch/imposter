@@ -43,10 +43,6 @@ function App() {
       setError(null);
     });
 
-    socket.on("reconnect_error", () => {
-      console.log("Błąd ponownego połączenia.");
-    });
-
     socket.on("players", setPlayers);
     socket.on("round", ({ word, remaining }) => {
       setWord(word);
@@ -97,9 +93,9 @@ function App() {
     socketRef.current.emit("start");  // Wysyłamy zapytanie do serwera, aby rozpocząć grę
   };
 
-  const voteImposter = (name) => {
+  const voteImposter = (id) => {
     if (!voted) {
-      socketRef.current.emit("vote", name);
+      socketRef.current.emit("vote", { name, votedName: id });
       setVoted(true);
     }
   };
@@ -109,30 +105,15 @@ function App() {
     socketRef.current.emit("next");
   };
 
-  const endGame = () => {
-    socketRef.current.emit("end");
-    // Resetowanie lokalnych zmiennych
-    setPlayers([]);
-    setWord(null);
-    setVoted(false);
-    setResult(null);
-    setScores({});
-    setStep("code");
-  };
+  const endGame = () => socketRef.current.emit("end");
 
   const leaveGame = () => {
     socketRef.current.emit("leave");
-    // Resetowanie lokalnych zmiennych
-    setPlayers([]);
-    setWord(null);
-    setVoted(false);
-    setResult(null);
-    setScores({});
-    setStep("code");
+    window.location.reload();
   };
 
-  const removePlayer = (name) => {
-    socketRef.current.emit("kick", name);
+  const removePlayer = (id) => {
+    socketRef.current.emit("kick", id);
   };
 
   const toggleTheme = () =>
