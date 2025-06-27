@@ -268,6 +268,13 @@ io.on("connection", (socket) => {
     room.players = room.players.filter(p => p.id !== socket.id);
     delete room.scores[socket.id];
     delete room.votes[socket.id];
+
+    // Resetowanie danych gracza po opuszczeniu gry
+    const playerName = room.players.find(p => p.id === socket.id)?.name;
+    if (playerName) {
+      delete playersData[playerName];  // Usuwamy dane gracza
+    }
+
     sendPlayersList();
   });
 
@@ -286,6 +293,13 @@ io.on("connection", (socket) => {
       playerRoles: {},
       playerStatus: {}
     };
+
+    // Resetujemy dane graczy (głosowanie i status)
+    for (const playerName in playersData) {
+      playersData[playerName].vote = null;  // Resetujemy głosowanie
+      playersData[playerName].status = "ingame";  // Resetujemy status
+    }
+
     io.to(GAME_ROOM).emit("ended");
   });
 
@@ -310,4 +324,3 @@ client.connect()
     server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
   })
   .catch(console.error);
- 
